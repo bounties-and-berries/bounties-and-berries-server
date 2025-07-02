@@ -6,9 +6,12 @@ const path = require('path');
 
 // Import routes
 const statusRoutes = require('./routes/status');
+const authRoutes = require('./routes/auth');
+const userRoutes = require('./routes/user');
 
 // Import middleware
 const { errorHandler } = require('./middleware/errorHandler');
+const { authenticateToken, authorizeRoles } = require('./middleware/authMiddleware');
 
 // Import config
 const config = require('./config/config');
@@ -25,6 +28,8 @@ app.use(express.urlencoded({ extended: true })); // Parse URL-encoded bodies
 
 // Routes
 app.use('/api/status', statusRoutes);
+app.use('/api/auth', authRoutes);
+app.use('/api/users', userRoutes);
 
 // Health check endpoint
 app.get('/health', (req, res) => {
@@ -46,6 +51,16 @@ app.get('/', (req, res) => {
       status: '/api/status'
     }
   });
+});
+
+// Example protected route (only accessible by admin)
+app.get('/api/protected/admin', authenticateToken, authorizeRoles('admin'), (req, res) => {
+  res.json({ message: `Hello ${req.user.username}, you have admin access!` });
+});
+
+// Example protected route (accessible by user or admin)
+app.get('/api/protected/user', authenticateToken, authorizeRoles('user', 'admin'), (req, res) => {
+  res.json({ message: `Hello ${req.user.username}, you have user or admin access!` });
 });
 
 // 404 handler
