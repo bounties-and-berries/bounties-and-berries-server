@@ -1,0 +1,8 @@
+version: 1.0
+runtime: nodejs
+build:
+  commands:
+    - npm install
+    - npm run build || true  # if build step is optional
+start:
+  command: node server.js     # replace with your entry point if it's different 
