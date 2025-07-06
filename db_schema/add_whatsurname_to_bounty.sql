@@ -1,1 +1,0 @@
-ALTER TABLE bounty ADD COLUMN IF NOT EXISTS whatsurname VARCHAR(255); 
