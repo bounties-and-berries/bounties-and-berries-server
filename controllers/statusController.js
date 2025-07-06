@@ -2,7 +2,7 @@ const config = require('../config/config');
 const os = require('os');
 
 /**
- * Get basic server status
+ * Get basic server status & status for monitoring
  * @param {Object} req - Express request object
  * @param {Object} res - Express response object
  */
