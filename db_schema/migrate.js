@@ -9,9 +9,9 @@ const files = [
   'user.sql',
   'reward.sql',
   'bounty.sql',
+  'add_unique_name_to_bounty.sql', // new migration
   'user_bounty_participation.sql',
   'user_reward_claim.sql',
-  'add_whatsurname_to_bounty.sql', // new migration
 ];
 
 async function runMigrations() {

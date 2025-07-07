@@ -29,4 +29,42 @@ function authorizeRoles(...roles) {
   };
 }
 
-module.exports = { authenticateToken, authorizeRoles }; 
+// Role-based permissions config
+const permissions = {
+  admin: [
+    'createBounty',
+    'editBounty',
+    'deleteBounty',
+    'viewAllBounties',
+    'viewBounties',
+    'joinBounty',
+    'viewOwnParticipation',
+    'manageUsers',
+    'viewRewards',
+    'claimReward'
+  ],
+  user: [
+    'viewBounties',
+    'joinBounty',
+    'viewOwnParticipation',
+    'viewRewards',
+    'claimReward'
+  ]
+};
+
+// Middleware to authorize based on permission
+function authorize(permission) {
+  return (req, res, next) => {
+    const userRole = req.user && req.user.role;
+    if (!userRole || !permissions[userRole] || !permissions[userRole].includes(permission)) {
+      return next(new ApiError('Forbidden: insufficient permission', 403));
+    }
+    next();
+  };
+}
+
+module.exports = {
+  authenticateToken,
+  authorizeRoles,
+  authorize,
+}; 

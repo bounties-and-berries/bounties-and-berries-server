@@ -23,7 +23,7 @@ const config = {
     name: 'Bounties and Berries Server',
     description: 'A Node.js server for Bounties and Berries application',
     version: '1.0.0',
-    author: 'Your Name',
+    author: 'KASDA',
     license: 'MIT'
   }
 };

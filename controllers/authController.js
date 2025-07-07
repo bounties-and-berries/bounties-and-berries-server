@@ -17,9 +17,14 @@ const login = async (req, res, next) => {
     if (!identifier || !password || !role) {
       throw new ApiError('Identifier (username or mobilenumber), password, and role are required', 400);
     }
-    const user = findUserByUsernameOrMobile(identifier, role);
+    // Find user by identifier only
+    const user = users.find(u => u.username === identifier || u.mobilenumber === identifier);
     if (!user) {
-      throw new ApiError('Invalid identifier or role', 401);
+      throw new ApiError('Invalid identifier', 401);
+    }
+    // Check that the provided role matches the user's actual role
+    if (user.role !== role) {
+      throw new ApiError('Incorrect role for this user', 401);
     }
     const passwordMatch = await bcrypt.compare(password, user.password);
     if (!passwordMatch) {
