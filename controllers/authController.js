@@ -1,7 +1,7 @@
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const { ApiError } = require('../middleware/errorHandler');
-const { findUserByUsernameOrMobile } = require('./userController');
+const { findUserByUsernameOrMobile, users } = require('./userController');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'supersecretkey';
 const JWT_EXPIRES_IN = '1h';

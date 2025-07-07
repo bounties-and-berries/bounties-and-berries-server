@@ -108,4 +108,4 @@ const changePassword = async (req, res, next) => {
   }
 };
 
-module.exports = { createUser, bulkCreateUsers, findUserByUsernameOrMobile, changePassword }; 
+module.exports = { createUser, bulkCreateUsers, findUserByUsernameOrMobile, changePassword, users }; 
