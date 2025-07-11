@@ -8,6 +8,15 @@ exports.getAllBounties = async (req, res) => {
     const params = [];
     let idx = 1;
 
+    // Pagination
+    const limit = parseInt(req.query.limit, 10) || 10;
+    const offset = parseInt(req.query.offset, 10) || 0;
+
+    // Dynamic sorting
+    const allowedSortFields = ['scheduled_date', 'created_on', 'alloted_points', 'alloted_berries', 'name', 'type', 'venue'];
+    const sortBy = allowedSortFields.includes(req.query.sort_by) ? req.query.sort_by : 'scheduled_date';
+    const order = req.query.order === 'desc' ? 'DESC' : 'ASC';
+
     if (status === 'upcoming') {
       query += ' AND scheduled_date > NOW()';
     } else if (status === 'ongoing') {
@@ -59,7 +68,9 @@ exports.getAllBounties = async (req, res) => {
       params.push(date_to);
     }
 
-    query += ' ORDER BY scheduled_date ASC';
+    query += ` ORDER BY ${sortBy} ${order}`;
+    query += ` LIMIT $${idx++} OFFSET $${idx++}`;
+    params.push(limit, offset);
 
     const result = await pool.query(query, params);
     res.json(result.rows);
