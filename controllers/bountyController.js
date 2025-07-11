@@ -3,7 +3,65 @@ const pool = require('../config/db');
 // Get all bounties
 exports.getAllBounties = async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM bounty WHERE is_active = TRUE ORDER BY scheduled_date ASC');
+    const { name, venue, type, date_from, date_to, status } = req.query;
+    let query = 'SELECT * FROM bounty WHERE is_active = TRUE';
+    const params = [];
+    let idx = 1;
+
+    if (status === 'upcoming') {
+      query += ' AND scheduled_date > NOW()';
+    } else if (status === 'ongoing') {
+      query += ' AND DATE(scheduled_date) = CURRENT_DATE';
+    } else if (status === 'completed') {
+      query += ' AND scheduled_date < NOW()';
+    } else if (status === 'trending') {
+      // Trending: weighted score based on recent and total participants, registration rate, upcoming, and newness
+      const trendingQuery = `
+        SELECT
+          b.*,
+          COUNT(ubp.id) AS total_participants,
+          SUM(CASE WHEN ubp.created_on >= NOW() - INTERVAL '7 days' THEN 1 ELSE 0 END) AS recent_participants,
+          SUM(CASE WHEN ubp.created_on >= NOW() - INTERVAL '1 day' THEN 1 ELSE 0 END) AS registration_rate_24h,
+          (SUM(CASE WHEN ubp.created_on >= NOW() - INTERVAL '7 days' THEN 1 ELSE 0 END) * 3) +
+          (COUNT(ubp.id) * 1) +
+          (SUM(CASE WHEN ubp.created_on >= NOW() - INTERVAL '1 day' THEN 1 ELSE 0 END) * 4) +
+          (CASE WHEN b.scheduled_date > NOW() THEN 5 ELSE 0 END) +
+          (CASE WHEN b.created_on >= NOW() - INTERVAL '3 days' THEN 2 ELSE 0 END) AS trending_score
+        FROM bounty b
+        LEFT JOIN user_bounty_participation ubp ON b.id = ubp.bounty_id
+        WHERE b.is_active = TRUE
+        GROUP BY b.id
+        ORDER BY trending_score DESC, b.scheduled_date ASC
+        LIMIT 10;
+      `;
+      const result = await pool.query(trendingQuery);
+      return res.json(result.rows);
+    }
+
+    if (name) {
+      query += ` AND name ILIKE $${idx++}`;
+      params.push(`%${name}%`);
+    }
+    if (venue) {
+      query += ` AND venue ILIKE $${idx++}`;
+      params.push(`%${venue}%`);
+    }
+    if (type) {
+      query += ` AND type ILIKE $${idx++}`;
+      params.push(`%${type}%`);
+    }
+    if (date_from) {
+      query += ` AND scheduled_date >= $${idx++}`;
+      params.push(date_from);
+    }
+    if (date_to) {
+      query += ` AND scheduled_date <= $${idx++}`;
+      params.push(date_to);
+    }
+
+    query += ' ORDER BY scheduled_date ASC';
+
+    const result = await pool.query(query, params);
     res.json(result.rows);
   } catch (err) {
     res.status(500).json({ error: 'Database error', details: err.message });

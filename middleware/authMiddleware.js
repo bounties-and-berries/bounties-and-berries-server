@@ -43,7 +43,14 @@ const permissions = {
     'viewRewards',
     'claimReward'
   ],
-  user: [
+  faculty: [
+    'viewBounties',
+    'joinBounty',
+    'viewOwnParticipation',
+    'viewRewards',
+    'claimReward'
+  ],
+  student: [
     'viewBounties',
     'joinBounty',
     'viewOwnParticipation',
