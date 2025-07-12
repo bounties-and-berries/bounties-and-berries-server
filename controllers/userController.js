@@ -6,10 +6,12 @@ const XLSX = require('xlsx');
 
 // In-memory user store
 const users = [];
+let nextUserId = 1;
 
 // Add a default admin user
 (async () => {
   const defaultAdmin = {
+    id: nextUserId++,
     username: 'admin',
     mobilenumber: '9999999999',
     role: 'admin',
@@ -34,7 +36,7 @@ const createUser = async (req, res, next) => {
     }
     const password = generatePassword();
     const hashedPassword = await bcrypt.hash(password, 10);
-    users.push({ username, mobilenumber, role, password: hashedPassword });
+    users.push({ id: nextUserId++, username, mobilenumber, role, password: hashedPassword });
     res.status(201).json({ username, mobilenumber, role, password });
   } catch (err) {
     next(err);
@@ -66,7 +68,7 @@ const bulkCreateUsers = async (req, res, next) => {
       if (users.find(u => u.username === username || u.mobilenumber === mobilenumber)) continue;
       const password = generatePassword();
       const hashedPassword = await bcrypt.hash(password, 10);
-      users.push({ username, mobilenumber, role, password: hashedPassword });
+      users.push({ id: nextUserId++, username, mobilenumber, role, password: hashedPassword });
       created.push({ username, mobilenumber, role, password });
     }
     res.status(201).json({ created });

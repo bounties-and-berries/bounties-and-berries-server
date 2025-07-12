@@ -9,6 +9,7 @@ const statusRoutes = require('./routes/status');
 const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/user');
 const bountyRoutes = require('./routes/bounty');
+const rewardRoutes = require('./routes/reward');
 
 // Import middleware
 const { errorHandler } = require('./middleware/errorHandler');
@@ -33,6 +34,7 @@ app.use('/api/status', statusRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/bounties', bountyRoutes);
+app.use('/api/rewards', rewardRoutes);
 
 // Health check endpoint
 app.get('/health', (req, res) => {

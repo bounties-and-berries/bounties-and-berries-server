@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS "user" (
     password VARCHAR(255) NOT NULL,
     is_active BOOLEAN DEFAULT TRUE,
     college_id BIGINT NOT NULL REFERENCES college(id),
+    img_url TEXT,
     created_on TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     modified_on TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     created_by VARCHAR(255),

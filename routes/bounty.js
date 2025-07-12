@@ -14,5 +14,7 @@ router.put('/:id', authenticateToken, authorize('editBounty'), bountyController.
 // Soft delete a bounty (sets is_active = false)
 router.delete('/:id', authenticateToken, authorize('deleteBounty'), bountyController.deleteBounty);
 router.patch('/:name', authenticateToken, authorize('editBounty'), bountyController.patchBountyByName);
+// Unified search/filter endpoint
+router.post('/search', authenticateToken, authorize('viewBounties'), bountyController.searchAndFilterBounties);
 
 module.exports = router; 

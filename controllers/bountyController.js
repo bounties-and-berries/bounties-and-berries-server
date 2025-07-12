@@ -243,4 +243,163 @@ exports.getAllBountiesAdmin = async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: 'Database error', details: err.message });
   }
+};
+
+// Unified search/filter endpoint for bounties
+exports.searchAndFilterBounties = async (req, res) => {
+  try {
+    const {
+      filters = {},
+      sortBy = 'name',
+      sortOrder = 'asc',
+      pageNumber = 1,
+      pageSize = 10
+    } = req.body;
+
+    let query = 'SELECT * FROM bounty WHERE is_active = TRUE';
+    const params = [];
+    let idx = 1;
+
+    // Status filter logic
+    if (filters.status === 'upcoming') {
+      query += ' AND scheduled_date > NOW()';
+    } else if (filters.status === 'ongoing') {
+      query += ' AND DATE(scheduled_date) = CURRENT_DATE';
+    } else if (filters.status === 'completed') {
+      query += ' AND scheduled_date < NOW()';
+    } else if (filters.status === 'trending') {
+      // Trending: weighted score based on recent and total participants, registration rate, upcoming, and newness
+      const trendingQuery = `
+        SELECT
+          b.*,
+          COUNT(ubp.id) AS total_participants,
+          SUM(CASE WHEN ubp.created_on >= NOW() - INTERVAL '7 days' THEN 1 ELSE 0 END) AS recent_participants,
+          SUM(CASE WHEN ubp.created_on >= NOW() - INTERVAL '1 day' THEN 1 ELSE 0 END) AS registration_rate_24h,
+          (SUM(CASE WHEN ubp.created_on >= NOW() - INTERVAL '7 days' THEN 1 ELSE 0 END) * 3) +
+          (COUNT(ubp.id) * 1) +
+          (SUM(CASE WHEN ubp.created_on >= NOW() - INTERVAL '1 day' THEN 1 ELSE 0 END) * 4) +
+          (CASE WHEN b.scheduled_date > NOW() THEN 5 ELSE 0 END) +
+          (CASE WHEN b.created_on >= NOW() - INTERVAL '3 days' THEN 2 ELSE 0 END) AS trending_score
+        FROM bounty b
+        LEFT JOIN user_bounty_participation ubp ON b.id = ubp.bounty_id
+        WHERE b.is_active = TRUE
+        GROUP BY b.id
+        ORDER BY trending_score DESC, b.scheduled_date ASC
+        LIMIT $1 OFFSET $2;
+      `;
+      const limit = parseInt(pageSize, 10) || 10;
+      const offset = ((parseInt(pageNumber, 10) || 1) - 1) * limit;
+      const result = await pool.query(trendingQuery, [limit, offset]);
+      // Get total count for trending (without LIMIT/OFFSET)
+      const countTrendingQuery = `
+        SELECT COUNT(*) FROM (
+          SELECT b.id
+          FROM bounty b
+          LEFT JOIN user_bounty_participation ubp ON b.id = ubp.bounty_id
+          WHERE b.is_active = TRUE
+          GROUP BY b.id
+        ) AS trending_bounties;
+      `;
+      const countResult = await pool.query(countTrendingQuery);
+      const totalResults = parseInt(countResult.rows[0].count, 10);
+      const totalPages = Math.ceil(totalResults / limit);
+      return res.json({
+        filters,
+        results: result.rows,
+        sortBy: 'trending_score',
+        sortOrder: 'desc',
+        pageNumber: parseInt(pageNumber, 10) || 1,
+        pageSize: limit,
+        totalResults,
+        totalPages
+      });
+    }
+
+    // Other filters
+    if (filters.name) {
+      query += ` AND name ILIKE $${idx++}`;
+      params.push(`%${filters.name}%`);
+    }
+    if (filters.venue) {
+      query += ` AND venue ILIKE $${idx++}`;
+      params.push(`%${filters.venue}%`);
+    }
+    if (filters.type) {
+      query += ` AND type ILIKE $${idx++}`;
+      params.push(`%${filters.type}%`);
+    }
+    if (filters.scheduledStart) {
+      query += ` AND scheduled_date >= $${idx++}`;
+      params.push(filters.scheduledStart);
+    }
+    if (filters.scheduledEnd) {
+      query += ` AND scheduled_date <= $${idx++}`;
+      params.push(filters.scheduledEnd);
+    }
+
+    // Sorting
+    const allowedSortFields = ['scheduled_date', 'created_on', 'alloted_points', 'alloted_berries', 'name', 'type', 'venue'];
+    const sortField = allowedSortFields.includes(sortBy) ? sortBy : 'name';
+    const order = sortOrder === 'desc' ? 'DESC' : 'ASC';
+    query += ` ORDER BY ${sortField} ${order}`;
+
+    // Pagination
+    const limit = parseInt(pageSize, 10) || 10;
+    const offset = ((parseInt(pageNumber, 10) || 1) - 1) * limit;
+    query += ` LIMIT $${idx++} OFFSET $${idx++}`;
+    params.push(limit, offset);
+
+    // Get total count for pagination
+    let countQuery = 'SELECT COUNT(*) FROM bounty WHERE is_active = TRUE';
+    let countParams = [];
+    let countIdx = 1;
+    // Status filter for count
+    if (filters.status === 'upcoming') {
+      countQuery += ' AND scheduled_date > NOW()';
+    } else if (filters.status === 'ongoing') {
+      countQuery += ' AND DATE(scheduled_date) = CURRENT_DATE';
+    } else if (filters.status === 'completed') {
+      countQuery += ' AND scheduled_date < NOW()';
+    }
+    if (filters.name) {
+      countQuery += ` AND name ILIKE $${countIdx++}`;
+      countParams.push(`%${filters.name}%`);
+    }
+    if (filters.venue) {
+      countQuery += ` AND venue ILIKE $${countIdx++}`;
+      countParams.push(`%${filters.venue}%`);
+    }
+    if (filters.type) {
+      countQuery += ` AND type ILIKE $${countIdx++}`;
+      countParams.push(`%${filters.type}%`);
+    }
+    if (filters.scheduledStart) {
+      countQuery += ` AND scheduled_date >= $${countIdx++}`;
+      countParams.push(filters.scheduledStart);
+    }
+    if (filters.scheduledEnd) {
+      countQuery += ` AND scheduled_date <= $${countIdx++}`;
+      countParams.push(filters.scheduledEnd);
+    }
+
+    const [result, countResult] = await Promise.all([
+      pool.query(query, params),
+      pool.query(countQuery, countParams)
+    ]);
+    const totalResults = parseInt(countResult.rows[0].count, 10);
+    const totalPages = Math.ceil(totalResults / limit);
+
+    res.json({
+      filters,
+      results: result.rows,
+      sortBy: sortField,
+      sortOrder: order.toLowerCase(),
+      pageNumber: parseInt(pageNumber, 10) || 1,
+      pageSize: limit,
+      totalResults,
+      totalPages
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Database error', details: err.message });
+  }
 }; 

@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS reward (
     name VARCHAR(255) NOT NULL,
     description TEXT,
     expiry_date TIMESTAMP,
+    img_url TEXT,
     created_on TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     modified_on TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     created_by VARCHAR(255),

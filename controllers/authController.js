@@ -30,7 +30,7 @@ const login = async (req, res, next) => {
     if (!passwordMatch) {
       throw new ApiError('Invalid password', 401);
     }
-    const token = jwt.sign({ username: user.username, mobilenumber: user.mobilenumber, role: user.role }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+    const token = jwt.sign({ id: user.id, username: user.username, mobilenumber: user.mobilenumber, role: user.role }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
     res.json({ token });
   } catch (err) {
     next(err);
