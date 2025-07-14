@@ -402,4 +402,38 @@ exports.searchAndFilterBounties = async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: 'Database error', details: err.message });
   }
+};
+
+// Register for a bounty
+exports.registerForBounty = async (req, res) => {
+  const userId = req.user.id;
+  const bountyId = req.params.bountyId;
+
+  // 1. Check for double registration
+  const existing = await pool.query(
+    'SELECT 1 FROM user_bounty_participation WHERE user_id = $1 AND bounty_id = $2',
+    [userId, bountyId]
+  );
+  if (existing.rows.length > 0) {
+    return res.status(400).json({ error: 'Already registered for this bounty' });
+  }
+
+  // 2. Check if bounty is expired or inactive
+  const bountyResult = await pool.query('SELECT * FROM bounty WHERE id = $1', [bountyId]);
+  if (bountyResult.rows.length === 0) {
+    return res.status(404).json({ error: 'Bounty not found' });
+  }
+  const bounty = bountyResult.rows[0];
+  if (!bounty.is_active || new Date(bounty.scheduled_date) < new Date()) {
+    return res.status(400).json({ error: 'Cannot register for expired or inactive bounty' });
+  }
+
+  // 3. Register
+  await pool.query(
+    'INSERT INTO user_bounty_participation (user_id, bounty_id, status, created_by, modified_by) VALUES ($1, $2, $3, $4, $5)',
+    [userId, bountyId, 'registered', userId, userId]
+  );
+
+  // 4. Respond
+  res.status(201).json({ message: 'registered successfully' });
 }; 

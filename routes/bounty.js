@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { authenticateToken, authorize } = require('../middleware/authMiddleware');
 const bountyController = require('../controllers/bountyController');
+const { asyncHandler } = require('../middleware/errorHandler');
 
 // Admin: Get all bounties (including soft deleted)
 router.get('/admin/all', authenticateToken, authorize('viewAllBounties'), bountyController.getAllBountiesAdmin);
@@ -16,5 +17,8 @@ router.delete('/:id', authenticateToken, authorize('deleteBounty'), bountyContro
 router.patch('/:name', authenticateToken, authorize('editBounty'), bountyController.patchBountyByName);
 // Unified search/filter endpoint
 router.post('/search', authenticateToken, authorize('viewBounties'), bountyController.searchAndFilterBounties);
+
+// Register for a bounty
+router.post('/register/:bountyId', authenticateToken, asyncHandler(bountyController.registerForBounty));
 
 module.exports = router; 

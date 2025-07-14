@@ -97,7 +97,7 @@ exports.claimReward = async (req, res) => {
     return res.status(401).json({ error: 'Unauthorized' });
   }
   try {
-    // Check if user has already claimed this reward
+    // 1. Check if user has already claimed this reward
     const existingClaim = await pool.query(
       'SELECT 1 FROM user_reward_claim WHERE user_id = $1 AND reward_id = $2',
       [userId, id]
@@ -105,33 +105,41 @@ exports.claimReward = async (req, res) => {
     if (existingClaim.rows.length > 0) {
       return res.status(400).json({ error: 'You have already claimed this reward' });
     }
-    // Get reward details
+    // 2. Calculate total berries earned
+    const earnedResult = await pool.query(
+      'SELECT COALESCE(SUM(berries_earned), 0) AS total_earned FROM user_bounty_participation WHERE user_id = $1',
+      [userId]
+    );
+    const totalEarned = parseInt(earnedResult.rows[0].total_earned, 10);
+    // 3. Calculate total berries spent
+    const spentResult = await pool.query(
+      'SELECT COALESCE(SUM(berries_spent), 0) AS total_spent FROM user_reward_claim WHERE user_id = $1',
+      [userId]
+    );
+    const totalSpent = parseInt(spentResult.rows[0].total_spent, 10);
+    // 4. Calculate available berries
+    const availableBerries = totalEarned - totalSpent;
+    // 5. Get reward cost (berries_required)
     const rewardResult = await pool.query('SELECT * FROM reward WHERE id = $1', [id]);
     if (rewardResult.rows.length === 0) {
       return res.status(404).json({ error: 'Reward not found' });
     }
     const reward = rewardResult.rows[0];
-    // Get user berries
-    const userResult = await pool.query('SELECT * FROM "user" WHERE id = $1', [userId]);
-    if (userResult.rows.length === 0) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-    const user = userResult.rows[0];
-    if (user.berries < reward.berries_spent) {
+    // 6. Check if user has enough berries
+    if (availableBerries < reward.berries_required) {
       return res.status(400).json({ error: 'Not enough berries to claim this reward' });
     }
-    // Deduct berries and create claim
+    // 7. Log the claim
     await pool.query('BEGIN');
-    await pool.query('UPDATE "user" SET berries = berries - $1 WHERE id = $2', [reward.berries_spent, userId]);
     const claimResult = await pool.query(
       'INSERT INTO user_reward_claim (user_id, reward_id, berries_spent, redeemable_code, created_by, modified_by) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
-      [userId, reward.id, reward.berries_spent, Math.random().toString(36).substring(2, 10).toUpperCase(), userId, userId]
+      [userId, reward.id, reward.berries_required, Math.random().toString(36).substring(2, 10).toUpperCase(), userId, userId]
     );
     await pool.query('COMMIT');
     res.status(201).json({
       message: 'Reward claimed successfully',
-      reward: { id: reward.id, name: reward.name, cost: reward.berries_spent },
-      remaining_berries: user.berries - reward.berries_spent,
+      reward: { id: reward.id, name: reward.name, cost: reward.berries_required },
+      remaining_berries: availableBerries - reward.berries_required,
       claim_id: claimResult.rows[0].id,
       redeem_code: claimResult.rows[0].redeemable_code
     });

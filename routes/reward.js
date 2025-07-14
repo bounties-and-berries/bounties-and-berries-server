@@ -2,6 +2,8 @@ const express = require('express');
 const router = express.Router();
 const { authenticateToken, authorizeRoles, authorize } = require('../middleware/authMiddleware');
 const rewardController = require('../controllers/rewardController');
+const { claimReward } = require('../controllers/rewardController');
+const { asyncHandler } = require('../middleware/errorHandler');
 
 // List all available rewards (open to all authenticated users)
 router.get('/', authenticateToken, rewardController.getAllRewards);
@@ -26,5 +28,8 @@ router.get('/claimed', authenticateToken, authorize('viewRewards'), rewardContro
 
 // Unified search/filter endpoint for rewards
 router.post('/search', authenticateToken, rewardController.searchAndFilterRewards);
+
+// Add claim reward route
+router.post('/claim/:id', authenticateToken, asyncHandler(claimReward));
 
 module.exports = router; 
