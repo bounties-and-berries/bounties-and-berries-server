@@ -3,7 +3,9 @@
 -- =========================
 CREATE TABLE IF NOT EXISTS "user" (
     id BIGSERIAL PRIMARY KEY,
-    name VARCHAR(255) NOT NULL,
+    username VARCHAR(255) NOT NULL UNIQUE, -- Main user name field for login
+    mobilenumber VARCHAR(255) NOT NULL UNIQUE, -- For login
+    name VARCHAR(255) NOT NULL, -- Display name
     mobile VARCHAR(255) NOT NULL UNIQUE,
     role_id BIGINT NOT NULL REFERENCES role(id),
     password VARCHAR(255) NOT NULL,
@@ -19,7 +21,7 @@ CREATE TABLE IF NOT EXISTS "user" (
 CREATE INDEX IF NOT EXISTS idx_user_role_id ON "user"(role_id);
 CREATE INDEX IF NOT EXISTS idx_user_college_id ON "user"(college_id);
 
-COMMENT ON TABLE "user" IS 'Represents a system user, including students or administrators';
+COMMENT ON TABLE "user" IS 'Represents a system user, including students or administrators. Username is the main user name field.';
 
 CREATE TRIGGER update_user_modified_on
 BEFORE UPDATE ON "user"
