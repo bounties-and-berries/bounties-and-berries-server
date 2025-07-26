@@ -108,6 +108,14 @@ app.use('*', (req, res) => {
 // Error handling middleware
 app.use(errorHandler);
 
+const express = require('express');
+const app = express();
+
+// ✅ Add this near the top of your file
+const PORT = process.env.PORT || 3000;
+
+// ... your routes and middleware
+
 if (require.main === module) {
   // Only start the server if this file is run directly
   app.listen(PORT, () => {
@@ -116,6 +124,8 @@ if (require.main === module) {
     console.log(`📈 Status API: http://localhost:${PORT}/api/status`);
     console.log(`🌐 Root endpoint: http://localhost:${PORT}/`);
   });
+}
+
 
   // Graceful shutdown
   process.on('SIGTERM', () => {
