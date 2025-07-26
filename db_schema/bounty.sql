@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS bounty (
     description TEXT,
     type VARCHAR(255),
     img_url TEXT,
+    image_hash TEXT,
     alloted_points BIGINT,
     alloted_berries BIGINT,
     scheduled_date TIMESTAMP,

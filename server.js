@@ -3,6 +3,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const path = require('path');
+const fs = require('fs');
 
 // Import routes
 const statusRoutes = require('./routes/status');
@@ -12,6 +13,7 @@ const bountyRoutes = require('./routes/bounty');
 const rewardRoutes = require('./routes/reward');
 const bountyParticipationRoutes = require('./routes/bountyParticipation');
 const userRewardClaimRoutes = require('./routes/userRewardClaim');
+const imageRouter = require('./routes/image');
 
 // Import middleware
 const { errorHandler } = require('./middleware/errorHandler');
@@ -22,14 +24,25 @@ const config = require('./config/config');
 const pool = require('./config/db');
 
 const app = express();
-const PORT = config.port || 443;
+const PORT = process.env.PORT || 3000;
 
 // Middleware
 app.use(helmet()); // Security headers
-app.use(cors()); // Enable CORS
+app.use(cors({
+  origin: '*',
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true
+})); // Enable permissive CORS for dev
 app.use(morgan('combined')); // Logging
 app.use(express.json()); // Parse JSON bodies
 app.use(express.urlencoded({ extended: true })); // Parse URL-encoded bodies
+
+// Ensure uploads/images directory exists
+const uploadDir = path.join(__dirname, 'uploads', 'images');
+fs.mkdirSync(uploadDir, { recursive: true });
+// Serve uploads directory statically
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Routes
 app.use('/api/status', statusRoutes);
@@ -39,6 +52,7 @@ app.use('/api/bounties', bountyRoutes);
 app.use('/api/reward', rewardRoutes);
 app.use('/api/bounty-participation', bountyParticipationRoutes);
 app.use('/api/user-reward-claim', userRewardClaimRoutes);
+app.use('/api/image', imageRouter);
 
 // Health check endpoint
 app.get('/health', (req, res) => {

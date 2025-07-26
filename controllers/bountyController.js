@@ -1,4 +1,7 @@
 const pool = require('../config/db');
+const { getFileHash } = require('../fileHash');
+const fs = require('fs');
+const path = require('path');
 
 // Get all bounties
 exports.getAllBounties = async (req, res) => {
@@ -22,7 +25,8 @@ exports.getAllBounties = async (req, res) => {
     } else if (status === 'ongoing') {
       query += ' AND DATE(scheduled_date) = CURRENT_DATE';
     } else if (status === 'completed') {
-      query += ' AND scheduled_date < NOW()';
+      query = 'SELECT b.* FROM bounty b JOIN user_bounty_participation ubp ON b.id = ubp.bounty_id WHERE b.is_active = TRUE AND ubp.user_id = $' + (idx++) + ' AND ubp.status = $' + (idx++);
+      params.push(req.user.id, 'completed');
     } else if (status === 'trending') {
       // Trending: weighted score based on recent and total participants, registration rate, upcoming, and newness
       const trendingQuery = `
@@ -85,7 +89,6 @@ exports.createBounty = async (req, res) => {
     name,
     description,
     type,
-    img_url,
     alloted_points,
     alloted_berries,
     scheduled_date,
@@ -99,11 +102,25 @@ exports.createBounty = async (req, res) => {
     return res.status(400).json({ error: 'Name is required' });
   }
   try {
-    // Ignore any client-sent created_on or modified_on
+    let image_hash = null;
+    let img_url = null;
+    if (req.file) {
+      img_url = `/uploads/bounty_imgs/${req.file.filename}`;
+      const fileBuffer = fs.readFileSync(req.file.path);
+      image_hash = getFileHash(fileBuffer);
+    } else if (req.body.img_url) {
+      img_url = req.body.img_url;
+      try {
+        const fileBuffer = fs.readFileSync('.' + img_url);
+        image_hash = getFileHash(fileBuffer);
+      } catch (e) {
+        image_hash = null;
+      }
+    }
     const result = await pool.query(
-      `INSERT INTO bounty (name, description, type, img_url, alloted_points, alloted_berries, scheduled_date, venue, capacity, is_active, created_by, modified_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *`,
-      [name, description, type, img_url, alloted_points, alloted_berries, scheduled_date, venue, capacity, is_active, created_by, modified_by]
+      `INSERT INTO bounty (name, description, type, img_url, image_hash, alloted_points, alloted_berries, scheduled_date, venue, capacity, is_active, created_by, modified_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING *`,
+      [name, description, type, img_url, image_hash, alloted_points, alloted_berries, scheduled_date, venue, capacity, is_active, created_by, modified_by]
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {
@@ -136,7 +153,6 @@ exports.updateBounty = async (req, res) => {
     name,
     description,
     type,
-    img_url,
     alloted_points,
     alloted_berries,
     scheduled_date,
@@ -146,9 +162,35 @@ exports.updateBounty = async (req, res) => {
     modified_by
   } = req.body;
   try {
+    let image_hash = null;
+    let img_url = null;
+    // Get old image URL
+    const bountyResult = await pool.query('SELECT img_url FROM bounty WHERE id = $1', [id]);
+    if (req.file) {
+      img_url = `/uploads/bounty_imgs/${req.file.filename}`;
+      const fileBuffer = fs.readFileSync(req.file.path);
+      image_hash = getFileHash(fileBuffer);
+      // Delete old image if present
+      if (bountyResult.rows.length > 0 && bountyResult.rows[0].img_url) {
+        const oldPath = path.join(__dirname, '..', bountyResult.rows[0].img_url);
+        if (fs.existsSync(oldPath)) {
+          fs.unlinkSync(oldPath);
+        }
+      }
+    } else if (req.body.img_url) {
+      img_url = req.body.img_url;
+      try {
+        const fileBuffer = fs.readFileSync('.' + img_url);
+        image_hash = getFileHash(fileBuffer);
+      } catch (e) {
+        image_hash = null;
+      }
+    } else if (bountyResult.rows.length > 0) {
+      img_url = bountyResult.rows[0].img_url;
+    }
     const result = await pool.query(
-      `UPDATE bounty SET name=$1, description=$2, type=$3, img_url=$4, alloted_points=$5, alloted_berries=$6, scheduled_date=$7, venue=$8, capacity=$9, is_active=$10, modified_by=$11, modified_on=NOW() WHERE id=$12 RETURNING *`,
-      [name, description, type, img_url, alloted_points, alloted_berries, scheduled_date, venue, capacity, is_active, modified_by, id]
+      `UPDATE bounty SET name=$1, description=$2, type=$3, img_url=$4, image_hash=$5, alloted_points=$6, alloted_berries=$7, scheduled_date=$8, venue=$9, capacity=$10, is_active=$11, modified_by=$12, modified_on=NOW() WHERE id=$13 RETURNING *`,
+      [name, description, type, img_url, image_hash, alloted_points, alloted_berries, scheduled_date, venue, capacity, is_active, modified_by, id]
     );
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Bounty not found' });
@@ -266,7 +308,11 @@ exports.searchAndFilterBounties = async (req, res) => {
     } else if (filters.status === 'ongoing') {
       query += ' AND DATE(scheduled_date) = CURRENT_DATE';
     } else if (filters.status === 'completed') {
-      query += ' AND scheduled_date < NOW()';
+      query = 'SELECT b.* FROM bounty b JOIN user_bounty_participation ubp ON b.id = ubp.bounty_id WHERE b.is_active = TRUE AND ubp.user_id = $' + (idx++) + ' AND ubp.status = $' + (idx++);
+      params.push(req.user.id, 'completed');
+    } else if (filters.status === 'registered') {
+      query = 'SELECT b.* FROM bounty b JOIN user_bounty_participation ubp ON b.id = ubp.bounty_id WHERE b.is_active = TRUE AND ubp.user_id = $' + (idx++);
+      params.push(req.user.id);
     } else if (filters.status === 'trending') {
       // Trending: weighted score based on recent and total participants, registration rate, upcoming, and newness
       const trendingQuery = `
@@ -359,7 +405,11 @@ exports.searchAndFilterBounties = async (req, res) => {
     } else if (filters.status === 'ongoing') {
       countQuery += ' AND DATE(scheduled_date) = CURRENT_DATE';
     } else if (filters.status === 'completed') {
-      countQuery += ' AND scheduled_date < NOW()';
+      countQuery = 'SELECT COUNT(b.*) FROM bounty b JOIN user_bounty_participation ubp ON b.id = ubp.bounty_id WHERE b.is_active = TRUE AND ubp.user_id = $' + (countIdx++) + ' AND ubp.status = $' + (countIdx++);
+      countParams.push(req.user.id, 'completed');
+    } else if (filters.status === 'registered') {
+      countQuery = 'SELECT COUNT(b.*) FROM bounty b JOIN user_bounty_participation ubp ON b.id = ubp.bounty_id WHERE b.is_active = TRUE AND ubp.user_id = $' + (countIdx++);
+      countParams.push(req.user.id);
     }
     if (filters.name) {
       countQuery += ` AND name ILIKE $${countIdx++}`;
@@ -389,9 +439,24 @@ exports.searchAndFilterBounties = async (req, res) => {
     const totalResults = parseInt(countResult.rows[0].count, 10);
     const totalPages = Math.ceil(totalResults / limit);
 
+    // If status is 'upcoming', add is_registered field to each bounty
+    let resultsWithRegistration = result.rows;
+    if (filters.status === 'upcoming' && req.user && req.user.id) {
+      // Get all bounty_ids the user is registered for
+      const regRes = await pool.query(
+        'SELECT bounty_id FROM user_bounty_participation WHERE user_id = $1',
+        [req.user.id]
+      );
+      const registeredIds = new Set(regRes.rows.map(row => row.bounty_id));
+      resultsWithRegistration = result.rows.map(bounty => ({
+        ...bounty,
+        is_registered: registeredIds.has(bounty.id)
+      }));
+    }
+
     res.json({
       filters,
-      results: result.rows,
+      results: resultsWithRegistration,
       sortBy: sortField,
       sortOrder: order.toLowerCase(),
       pageNumber: parseInt(pageNumber, 10) || 1,
@@ -434,6 +499,16 @@ exports.registerForBounty = async (req, res) => {
     [userId, bountyId, 'registered', userId, userId]
   );
 
-  // 4. Respond
-  res.status(201).json({ message: 'registered successfully' });
+  // 4. Fetch all registered bounties for the user
+  const registeredBountiesResult = await pool.query(
+    'SELECT bounty_id FROM user_bounty_participation WHERE user_id = $1',
+    [userId]
+  );
+  const registeredBounties = registeredBountiesResult.rows.map(row => row.bounty_id);
+
+  // 5. Respond
+  res.status(201).json({
+    message: 'registered successfully',
+    registeredBounties
+  });
 }; 

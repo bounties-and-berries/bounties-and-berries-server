@@ -4,6 +4,7 @@ const { authenticateToken, authorizeRoles, authorize } = require('../middleware/
 const rewardController = require('../controllers/rewardController');
 const { claimReward } = require('../controllers/rewardController');
 const { asyncHandler } = require('../middleware/errorHandler');
+const getUpload = require('../middleware/uploadCategory');
 
 // List all available rewards (open to all authenticated users)
 router.get('/', authenticateToken, rewardController.getAllRewards);
@@ -12,10 +13,10 @@ router.get('/', authenticateToken, rewardController.getAllRewards);
 router.get('/:id', authenticateToken, rewardController.getRewardById);
 
 // Create a reward (only creators)
-router.post('/', authenticateToken, authorizeRoles('creator'), rewardController.createReward);
+router.post('/', authenticateToken, authorizeRoles('creator'), getUpload('rewards_imgs').single('image'), rewardController.createReward);
 
 // Update a reward (only creators)
-router.put('/:id', authenticateToken, authorizeRoles('creator'), rewardController.updateReward);
+router.put('/:id', authenticateToken, authorizeRoles('creator'), getUpload('rewards_imgs').single('image'), rewardController.updateReward);
 
 // Delete a reward (only creators)
 router.delete('/:id', authenticateToken, authorizeRoles('creator'), rewardController.deleteReward);
@@ -24,7 +25,7 @@ router.delete('/:id', authenticateToken, authorizeRoles('creator'), rewardContro
 router.post('/:id/claim', authenticateToken, authorize('claimReward'), rewardController.claimReward);
 
 // List claimed rewards for the current user (protected, permission required)
-router.get('/claimed', authenticateToken, authorize('viewRewards'), rewardController.getClaimedRewards);
+router.get('/user/claimed', authenticateToken, authorize('viewRewards'), rewardController.getClaimedRewards);
 
 // Unified search/filter endpoint for rewards
 router.post('/search', authenticateToken, rewardController.searchAndFilterRewards);

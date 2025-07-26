@@ -1,7 +1,15 @@
 const bcrypt = require('bcrypt');
 
-const password = 'user@123'; // Change this to your desired password
+function hashPassword(password) {
+  return bcrypt.hash(password, 10);
+}
 
-bcrypt.hash(password, 10).then(hash => {
-  console.log('Hashed password:', hash);
-}); 
+// Script usage (run with `node hash.js`)
+/*if (require.main === module) {
+  const password = 'user@123'; // Change this to your desired password
+  hashPassword(password).then(hash => {
+    console.log('Hashed password:', hash);
+  });
+}
+
+module.exports = { hashPassword }; */

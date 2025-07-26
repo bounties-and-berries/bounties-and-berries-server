@@ -1,4 +1,7 @@
 const pool = require('../config/db');
+const { getFileHash } = require('../fileHash');
+const path = require('path');
+const fs = require('fs');
 
 // List all available rewards
 exports.getAllRewards = async (req, res) => {
@@ -32,10 +35,25 @@ exports.createReward = async (req, res) => {
       return res.status(400).json({ error: 'Name and berries_spent are required' });
     }
     const createdBy = req.user.id;
+    let image_hash = null;
+    let img_url = null;
+    if (req.file) {
+      img_url = `/uploads/rewards_imgs/${req.file.filename}`;
+      const fileBuffer = fs.readFileSync(req.file.path);
+      image_hash = getFileHash(fileBuffer);
+    } else if (req.body.img_url) {
+      img_url = req.body.img_url;
+      try {
+        const fileBuffer = fs.readFileSync('.' + img_url);
+        image_hash = getFileHash(fileBuffer);
+      } catch (e) {
+        image_hash = null;
+      }
+    }
     const result = await pool.query(
-      `INSERT INTO reward (name, description, berries_spent, expiry_date, created_by, modified_by)
-       VALUES ($1, $2, $3, $4, $5, $5) RETURNING *`,
-      [name, description, berries_spent, expiry_date, createdBy]
+      `INSERT INTO reward (name, description, berries_spent, expiry_date, img_url, image_hash, created_by, modified_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $7) RETURNING *`,
+      [name, description, berries_spent, expiry_date, img_url, image_hash, createdBy]
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {
@@ -58,9 +76,33 @@ exports.updateReward = async (req, res) => {
       return res.status(403).json({ error: 'Forbidden: not the creator' });
     }
     const { name, description, berries_spent, expiry_date, ...otherFields } = req.body;
+    let image_hash = null;
+    let img_url = null;
+    if (req.file) {
+      img_url = `/uploads/rewards_imgs/${req.file.filename}`;
+      const fileBuffer = fs.readFileSync(req.file.path);
+      image_hash = getFileHash(fileBuffer);
+      // Delete old image if present
+      if (reward.img_url) {
+        const oldPath = path.join(__dirname, '..', reward.img_url);
+        if (fs.existsSync(oldPath)) {
+          fs.unlinkSync(oldPath);
+        }
+      }
+    } else if (req.body.img_url) {
+      img_url = req.body.img_url;
+      try {
+        const fileBuffer = fs.readFileSync('.' + img_url);
+        image_hash = getFileHash(fileBuffer);
+      } catch (e) {
+        image_hash = null;
+      }
+    } else {
+      img_url = reward.img_url;
+    }
     const result = await pool.query(
-      `UPDATE reward SET name = $1, description = $2, berries_spent = $3, expiry_date = $4, modified_by = $5, modified_on = NOW() WHERE id = $6 RETURNING *`,
-      [name || reward.name, description || reward.description, berries_spent || reward.berries_spent, expiry_date || reward.expiry_date, userId, id]
+      `UPDATE reward SET name = $1, description = $2, berries_spent = $3, expiry_date = $4, img_url = $5, image_hash = $6, modified_by = $7, modified_on = NOW() WHERE id = $8 RETURNING *`,
+      [name || reward.name, description || reward.description, berries_spent || reward.berries_spent, expiry_date || reward.expiry_date, img_url, image_hash, userId, id]
     );
     res.json(result.rows[0]);
   } catch (err) {
@@ -157,11 +199,11 @@ exports.getClaimedRewards = async (req, res) => {
   }
   try {
     const result = await pool.query(
-      `SELECT urc.id as claim_id, r.id as reward_id, r.name, urc.claimed_on, urc.redeemable_code, urc.status
+      `SELECT urc.id as claim_id, r.id as reward_id, r.name, urc.created_on, urc.redeemable_code
        FROM user_reward_claim urc
        JOIN reward r ON urc.reward_id = r.id
        WHERE urc.user_id = $1
-       ORDER BY urc.claimed_on DESC`,
+       ORDER BY urc.created_on DESC`,
       [userId]
     );
     res.json(result.rows);
