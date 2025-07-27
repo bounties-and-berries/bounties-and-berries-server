@@ -24,6 +24,12 @@ router.get('/bounty/:bountyId', authenticateToken, authorizeView, asyncHandler(c
 // 2. View own bounty participation (any authenticated user)
 router.get('/my', authenticateToken, asyncHandler(controller.getMyParticipations));
 
+// 3. Get total earnings by user (any authenticated user)
+router.get('/earnings/:userId', authenticateToken, asyncHandler(controller.getTotalEarningsByUser));
+
+// 4. Get net berries by user (any authenticated user)
+router.get('/net-berries/:userId', authenticateToken, asyncHandler(controller.getNetBerriesByUser));
+
 // CRUD routes
 router.post('/', authenticateToken, authorizeCreator, asyncHandler(controller.createParticipation));
 router.get('/', authenticateToken, authorizeView, asyncHandler(controller.listParticipations));

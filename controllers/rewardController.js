@@ -1,29 +1,30 @@
-const pool = require('../config/db');
 const { getFileHash } = require('../fileHash');
 const path = require('path');
 const fs = require('fs');
+const rewardService = require('../services/rewardService');
 
 // List all available rewards
 exports.getAllRewards = async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM reward WHERE expiry_date IS NULL OR expiry_date >= NOW() ORDER BY expiry_date ASC');
-    res.json(result.rows);
+    const rewards = await rewardService.getAllRewards();
+    res.json(rewards);
   } catch (err) {
-    res.status(500).json({ error: 'Database error', details: err.message });
+    res.status(500).json({ error: 'Failed to fetch rewards', details: err.message });
   }
 };
 
 // Get reward by ID
 exports.getRewardById = async (req, res) => {
-  const { id } = req.params;
   try {
-    const result = await pool.query('SELECT * FROM reward WHERE id = $1', [id]);
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Reward not found' });
-    }
-    res.json(result.rows[0]);
+    const { id } = req.params;
+    const reward = await rewardService.getRewardById(id);
+    res.json(reward);
   } catch (err) {
-    res.status(500).json({ error: 'Database error', details: err.message });
+    if (err.message.includes('REWARD_NOT_FOUND')) {
+      res.status(404).json({ error: 'Reward not found' });
+    } else {
+      res.status(500).json({ error: 'Failed to fetch reward', details: err.message });
+    }
   }
 };
 
@@ -31,10 +32,9 @@ exports.getRewardById = async (req, res) => {
 exports.createReward = async (req, res) => {
   try {
     const { name, description, berries_spent, expiry_date, ...otherFields } = req.body;
-    if (!name || !berries_spent) {
-      return res.status(400).json({ error: 'Name and berries_spent are required' });
-    }
     const createdBy = req.user.id;
+
+    // Handle file upload
     let image_hash = null;
     let img_url = null;
     if (req.file) {
@@ -50,41 +50,56 @@ exports.createReward = async (req, res) => {
         image_hash = null;
       }
     }
-    const result = await pool.query(
-      `INSERT INTO reward (name, description, berries_spent, expiry_date, img_url, image_hash, created_by, modified_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $7) RETURNING *`,
-      [name, description, berries_spent, expiry_date, img_url, image_hash, createdBy]
-    );
-    res.status(201).json(result.rows[0]);
+
+    const rewardData = {
+      name,
+      description,
+      berries_spent,
+      expiry_date,
+      img_url,
+      image_hash,
+      created_by: createdBy,
+      modified_by: createdBy
+    };
+
+    const reward = await rewardService.createReward(rewardData);
+    res.status(201).json(reward);
   } catch (err) {
-    res.status(500).json({ error: 'Database error', details: err.message });
+    if (err.message.includes('NAME_REQUIRED')) {
+      res.status(400).json({ error: 'Name and berries_spent are required' });
+    } else if (err.message.includes('BERRIES_SPENT_REQUIRED')) {
+      res.status(400).json({ error: 'Berries spent must be greater than 0' });
+    } else if (err.message.includes('DUPLICATE_NAME')) {
+      res.status(409).json({ error: 'A reward with this name already exists' });
+    } else if (err.message.includes('INVALID_EXPIRY_DATE')) {
+      res.status(400).json({ error: 'Expiry date cannot be in the past' });
+    } else {
+      res.status(500).json({ error: 'Failed to create reward', details: err.message });
+    }
   }
 };
 
 // Update a reward (only creator can update)
 exports.updateReward = async (req, res) => {
-  const { id } = req.params;
-  const userId = req.user.id;
   try {
-    // Check if reward exists and is owned by the user
-    const rewardResult = await pool.query('SELECT * FROM reward WHERE id = $1', [id]);
-    if (rewardResult.rows.length === 0) {
-      return res.status(404).json({ error: 'Reward not found' });
-    }
-    const reward = rewardResult.rows[0];
-    if (reward.created_by !== userId) {
-      return res.status(403).json({ error: 'Forbidden: not the creator' });
-    }
+    const { id } = req.params;
+    const userId = req.user.id;
     const { name, description, berries_spent, expiry_date, ...otherFields } = req.body;
+
+    // Handle file upload
     let image_hash = null;
     let img_url = null;
+    
+    // Get current reward to check existing image
+    const currentReward = await rewardService.getRewardById(id);
+    
     if (req.file) {
       img_url = `/uploads/rewards_imgs/${req.file.filename}`;
       const fileBuffer = fs.readFileSync(req.file.path);
       image_hash = getFileHash(fileBuffer);
       // Delete old image if present
-      if (reward.img_url) {
-        const oldPath = path.join(__dirname, '..', reward.img_url);
+      if (currentReward.img_url) {
+        const oldPath = path.join(__dirname, '..', currentReward.img_url);
         if (fs.existsSync(oldPath)) {
           fs.unlinkSync(oldPath);
         }
@@ -98,117 +113,237 @@ exports.updateReward = async (req, res) => {
         image_hash = null;
       }
     } else {
-      img_url = reward.img_url;
+      img_url = currentReward.img_url;
+      image_hash = currentReward.image_hash;
     }
-    const result = await pool.query(
-      `UPDATE reward SET name = $1, description = $2, berries_spent = $3, expiry_date = $4, img_url = $5, image_hash = $6, modified_by = $7, modified_on = NOW() WHERE id = $8 RETURNING *`,
-      [name || reward.name, description || reward.description, berries_spent || reward.berries_spent, expiry_date || reward.expiry_date, img_url, image_hash, userId, id]
-    );
-    res.json(result.rows[0]);
+
+    const updateData = {
+      name,
+      description,
+      berries_spent,
+      expiry_date,
+      img_url,
+      image_hash,
+      modified_by: userId
+    };
+
+    const reward = await rewardService.updateReward(id, updateData, userId);
+    res.json(reward);
   } catch (err) {
-    res.status(500).json({ error: 'Database error', details: err.message });
+    if (err.message.includes('REWARD_NOT_FOUND')) {
+      res.status(404).json({ error: 'Reward not found' });
+    } else if (err.message.includes('UNAUTHORIZED_UPDATE')) {
+      res.status(403).json({ error: 'Forbidden: not the creator' });
+    } else if (err.message.includes('NAME_REQUIRED')) {
+      res.status(400).json({ error: 'Name is required' });
+    } else if (err.message.includes('BERRIES_SPENT_REQUIRED')) {
+      res.status(400).json({ error: 'Berries spent must be greater than 0' });
+    } else if (err.message.includes('DUPLICATE_NAME')) {
+      res.status(409).json({ error: 'A reward with this name already exists' });
+    } else if (err.message.includes('INVALID_EXPIRY_DATE')) {
+      res.status(400).json({ error: 'Expiry date cannot be in the past' });
+    } else {
+      res.status(500).json({ error: 'Failed to update reward', details: err.message });
+    }
   }
 };
 
 // Delete a reward (only creator can delete)
 exports.deleteReward = async (req, res) => {
-  const { id } = req.params;
-  const userId = req.user.id;
   try {
-    // Check if reward exists and is owned by the user
-    const rewardResult = await pool.query('SELECT * FROM reward WHERE id = $1', [id]);
-    if (rewardResult.rows.length === 0) {
-      return res.status(404).json({ error: 'Reward not found' });
-    }
-    const reward = rewardResult.rows[0];
-    if (reward.created_by !== userId) {
-      return res.status(403).json({ error: 'Forbidden: not the creator' });
-    }
-    await pool.query('DELETE FROM reward WHERE id = $1', [id]);
-    res.json({ message: 'Reward deleted successfully' });
+    const { id } = req.params;
+    const userId = req.user.id;
+    const reward = await rewardService.deleteReward(id, userId);
+    res.json({ message: 'Reward deleted successfully', reward });
   } catch (err) {
-    res.status(500).json({ error: 'Database error', details: err.message });
+    if (err.message.includes('REWARD_NOT_FOUND')) {
+      res.status(404).json({ error: 'Reward not found' });
+    } else if (err.message.includes('UNAUTHORIZED_DELETE')) {
+      res.status(403).json({ error: 'Forbidden: not the creator' });
+    } else {
+      res.status(500).json({ error: 'Failed to delete reward', details: err.message });
+    }
   }
 };
 
 // Claim a reward
 exports.claimReward = async (req, res) => {
-  const { id } = req.params;
-  const userId = req.user && req.user.id;
-  if (!userId) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
   try {
-    // 1. Check if user has already claimed this reward
-    const existingClaim = await pool.query(
-      'SELECT 1 FROM user_reward_claim WHERE user_id = $1 AND reward_id = $2',
-      [userId, id]
-    );
-    if (existingClaim.rows.length > 0) {
-      return res.status(400).json({ error: 'You have already claimed this reward' });
+    const { id } = req.params;
+    const userId = req.user && req.user.id;
+    
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
     }
-    // 2. Calculate total berries earned
+
+    // Check if user can claim the reward
+    const claimCheck = await rewardService.checkUserCanClaimReward(userId, id);
+    
+    if (!claimCheck.canClaim) {
+      return res.status(400).json({ error: claimCheck.reason });
+    }
+
+    // This would require a new service method for claiming rewards
+    // For now, we'll use the existing logic but move it to service layer later
+    const pool = require('../config/db');
+    
+    // Calculate total berries earned
     const earnedResult = await pool.query(
       'SELECT COALESCE(SUM(berries_earned), 0) AS total_earned FROM user_bounty_participation WHERE user_id = $1',
       [userId]
     );
     const totalEarned = parseInt(earnedResult.rows[0].total_earned, 10);
-    // 3. Calculate total berries spent
+    
+    // Calculate total berries spent
     const spentResult = await pool.query(
       'SELECT COALESCE(SUM(berries_spent), 0) AS total_spent FROM user_reward_claim WHERE user_id = $1',
       [userId]
     );
     const totalSpent = parseInt(spentResult.rows[0].total_spent, 10);
-    // 4. Calculate available berries
+    
+    // Calculate available berries
     const availableBerries = totalEarned - totalSpent;
-    // 5. Get reward cost (berries_required)
-    const rewardResult = await pool.query('SELECT * FROM reward WHERE id = $1', [id]);
-    if (rewardResult.rows.length === 0) {
-      return res.status(404).json({ error: 'Reward not found' });
-    }
-    const reward = rewardResult.rows[0];
-    // 6. Check if user has enough berries
-    if (availableBerries < reward.berries_required) {
+    
+    // Check if user has enough berries
+    if (availableBerries < claimCheck.reward.berries_spent) {
       return res.status(400).json({ error: 'Not enough berries to claim this reward' });
     }
-    // 7. Log the claim
+    
+    // Log the claim
     await pool.query('BEGIN');
     const claimResult = await pool.query(
       'INSERT INTO user_reward_claim (user_id, reward_id, berries_spent, redeemable_code, created_by, modified_by) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
-      [userId, reward.id, reward.berries_required, Math.random().toString(36).substring(2, 10).toUpperCase(), userId, userId]
+      [userId, claimCheck.reward.id, claimCheck.reward.berries_spent, Math.random().toString(36).substring(2, 10).toUpperCase(), userId, userId]
     );
     await pool.query('COMMIT');
+    
     res.status(201).json({
       message: 'Reward claimed successfully',
-      reward: { id: reward.id, name: reward.name, cost: reward.berries_required },
-      remaining_berries: availableBerries - reward.berries_required,
+      reward: { id: claimCheck.reward.id, name: claimCheck.reward.name, cost: claimCheck.reward.berries_spent },
+      remaining_berries: availableBerries - claimCheck.reward.berries_spent,
       claim_id: claimResult.rows[0].id,
       redeem_code: claimResult.rows[0].redeemable_code
     });
   } catch (err) {
+    const pool = require('../config/db');
     await pool.query('ROLLBACK');
-    res.status(500).json({ error: 'Database error', details: err.message });
+    res.status(500).json({ error: 'Failed to claim reward', details: err.message });
   }
 };
 
 // List claimed rewards for the current user
 exports.getClaimedRewards = async (req, res) => {
-  const userId = req.user && req.user.id;
-  if (!userId) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
   try {
-    const result = await pool.query(
-      `SELECT urc.id as claim_id, r.id as reward_id, r.name, urc.created_on, urc.redeemable_code
-       FROM user_reward_claim urc
-       JOIN reward r ON urc.reward_id = r.id
-       WHERE urc.user_id = $1
-       ORDER BY urc.created_on DESC`,
-      [userId]
-    );
-    res.json(result.rows);
+    const userId = req.user && req.user.id;
+    
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const claimedRewards = await rewardService.getClaimedRewards(userId);
+    res.json(claimedRewards);
   } catch (err) {
-    res.status(500).json({ error: 'Database error', details: err.message });
+    res.status(500).json({ error: 'Failed to fetch claimed rewards', details: err.message });
+  }
+};
+
+// Get rewards by creator
+exports.getRewardsByCreator = async (req, res) => {
+  try {
+    const { creatorId } = req.params;
+    const rewards = await rewardService.getRewardsByCreator(creatorId);
+    res.json(rewards);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch rewards by creator', details: err.message });
+  }
+};
+
+// Get available rewards
+exports.getAvailableRewards = async (req, res) => {
+  try {
+    const rewards = await rewardService.getAvailableRewards();
+    res.json(rewards);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch available rewards', details: err.message });
+  }
+};
+
+// Get expired rewards
+exports.getExpiredRewards = async (req, res) => {
+  try {
+    const rewards = await rewardService.getExpiredRewards();
+    res.json(rewards);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch expired rewards', details: err.message });
+  }
+};
+
+// Search rewards by name
+exports.searchRewardsByName = async (req, res) => {
+  try {
+    const { name } = req.query;
+    const rewards = await rewardService.searchRewardsByName(name);
+    res.json(rewards);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to search rewards', details: err.message });
+  }
+};
+
+// Search rewards by description
+exports.searchRewardsByDescription = async (req, res) => {
+  try {
+    const { description } = req.query;
+    const rewards = await rewardService.searchRewardsByDescription(description);
+    res.json(rewards);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to search rewards', details: err.message });
+  }
+};
+
+// Search rewards by berries range
+exports.searchRewardsByBerriesRange = async (req, res) => {
+  try {
+    const { min_berries, max_berries } = req.query;
+    const rewards = await rewardService.searchRewardsByBerriesRange(
+      min_berries ? parseInt(min_berries) : undefined,
+      max_berries ? parseInt(max_berries) : undefined
+    );
+    res.json(rewards);
+  } catch (err) {
+    if (err.message.includes('INVALID_MIN_BERRIES')) {
+      res.status(400).json({ error: 'Minimum berries cannot be negative' });
+    } else if (err.message.includes('INVALID_MAX_BERRIES')) {
+      res.status(400).json({ error: 'Maximum berries cannot be negative' });
+    } else if (err.message.includes('INVALID_BERRIES_RANGE')) {
+      res.status(400).json({ error: 'Minimum berries cannot be greater than maximum berries' });
+    } else {
+      res.status(500).json({ error: 'Failed to search rewards', details: err.message });
+    }
+  }
+};
+
+// Get expiring soon rewards
+exports.getExpiringSoonRewards = async (req, res) => {
+  try {
+    const { days } = req.query;
+    const rewards = await rewardService.getExpiringSoonRewards(days ? parseInt(days) : 7);
+    res.json(rewards);
+  } catch (err) {
+    if (err.message.includes('INVALID_DAYS_PARAMETER')) {
+      res.status(400).json({ error: 'Days parameter must be at least 1' });
+    } else {
+      res.status(500).json({ error: 'Failed to fetch expiring rewards', details: err.message });
+    }
+  }
+};
+
+// Get all rewards including expired
+exports.getAllRewardsIncludingExpired = async (req, res) => {
+  try {
+    const rewards = await rewardService.getAllRewardsIncludingExpired();
+    res.json(rewards);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch all rewards', details: err.message });
   }
 };
 
@@ -223,73 +358,27 @@ exports.searchAndFilterRewards = async (req, res) => {
       pageSize = 10
     } = req.body;
 
-    let query = 'SELECT * FROM reward WHERE 1=1';
-    const params = [];
-    let idx = 1;
+    // Use service method for search and filter
+    const results = await rewardService.searchAndFilterRewards(filters);
 
-    // Example filters
-    if (filters.name) {
-      query += ` AND name ILIKE $${idx++}`;
-      params.push(`%${filters.name}%`);
-    }
-    if (filters.expiryStart) {
-      query += ` AND expiry_date >= $${idx++}`;
-      params.push(filters.expiryStart);
-    }
-    if (filters.expiryEnd) {
-      query += ` AND expiry_date <= $${idx++}`;
-      params.push(filters.expiryEnd);
-    }
-    // Add more filters as needed
-
-    // Sorting
-    const allowedSortFields = ['name', 'expiry_date', 'berries_spent'];
-    const sortField = allowedSortFields.includes(sortBy) ? sortBy : 'name';
-    const order = sortOrder === 'desc' ? 'DESC' : 'ASC';
-    query += ` ORDER BY ${sortField} ${order}`;
-
-    // Pagination
+    // Handle pagination manually since the service doesn't handle it yet
     const limit = parseInt(pageSize, 10) || 10;
     const offset = ((parseInt(pageNumber, 10) || 1) - 1) * limit;
-    query += ` LIMIT $${idx++} OFFSET $${idx++}`;
-    params.push(limit, offset);
-
-    // Get total count for pagination
-    let countQuery = 'SELECT COUNT(*) FROM reward WHERE 1=1';
-    let countParams = [];
-    let countIdx = 1;
-    if (filters.name) {
-      countQuery += ` AND name ILIKE $${countIdx++}`;
-      countParams.push(`%${filters.name}%`);
-    }
-    if (filters.expiryStart) {
-      countQuery += ` AND expiry_date >= $${countIdx++}`;
-      countParams.push(filters.expiryStart);
-    }
-    if (filters.expiryEnd) {
-      countQuery += ` AND expiry_date <= $${countIdx++}`;
-      countParams.push(filters.expiryEnd);
-    }
-    // Add more filters as needed
-
-    const [result, countResult] = await Promise.all([
-      pool.query(query, params),
-      pool.query(countQuery, countParams)
-    ]);
-    const totalResults = parseInt(countResult.rows[0].count, 10);
+    const paginatedResults = results.slice(offset, offset + limit);
+    const totalResults = results.length;
     const totalPages = Math.ceil(totalResults / limit);
 
     res.json({
       filters,
-      results: result.rows,
-      sortBy: sortField,
-      sortOrder: order.toLowerCase(),
+      results: paginatedResults,
+      sortBy,
+      sortOrder: sortOrder.toLowerCase(),
       pageNumber: parseInt(pageNumber, 10) || 1,
       pageSize: limit,
       totalResults,
       totalPages
     });
   } catch (err) {
-    res.status(500).json({ error: 'Database error', details: err.message });
+    res.status(500).json({ error: 'Failed to search rewards', details: err.message });
   }
 }; 

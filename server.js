@@ -14,6 +14,8 @@ const rewardRoutes = require('./routes/reward');
 const bountyParticipationRoutes = require('./routes/bountyParticipation');
 const userRewardClaimRoutes = require('./routes/userRewardClaim');
 const imageRouter = require('./routes/image');
+const collegeRoutes = require('./routes/college');
+const roleRoutes = require('./routes/role');
 
 // Import middleware
 const { errorHandler } = require('./middleware/errorHandler');
@@ -53,6 +55,8 @@ app.use('/api/reward', rewardRoutes);
 app.use('/api/bounty-participation', bountyParticipationRoutes);
 app.use('/api/user-reward-claim', userRewardClaimRoutes);
 app.use('/api/image', imageRouter);
+app.use('/api/college', collegeRoutes);
+app.use('/api/role', roleRoutes);
 
 // Health check endpoint
 app.get('/health', (req, res) => {
@@ -108,14 +112,7 @@ app.use('*', (req, res) => {
 // Error handling middleware
 app.use(errorHandler);
 
-const express = require('express');
-const app = express();
-
-// ✅ Add this near the top of your file
-const PORT = process.env.PORT || 3000;
-
-// ... your routes and middleware
-
+// Start server
 if (require.main === module) {
   // Only start the server if this file is run directly
   app.listen(PORT, () => {
@@ -126,17 +123,15 @@ if (require.main === module) {
   });
 }
 
+// Graceful shutdown
+process.on('SIGTERM', () => {
+  console.log('SIGTERM received, shutting down gracefully');
+  process.exit(0);
+});
 
-  // Graceful shutdown
-  process.on('SIGTERM', () => {
-    console.log('SIGTERM received, shutting down gracefully');
-    process.exit(0);
-  });
-
-  process.on('SIGINT', () => {
-    console.log('SIGINT received, shutting down gracefully');
-    process.exit(0);
-  });
-}
+process.on('SIGINT', () => {
+  console.log('SIGINT received, shutting down gracefully');
+  process.exit(0);
+});
 
 module.exports = app; 
