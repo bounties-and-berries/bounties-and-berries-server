@@ -115,12 +115,14 @@ app.use(errorHandler);
 // Start server
 if (require.main === module) {
   // Only start the server if this file is run directly
-  app.listen(PORT, () => {
-    console.log(`🚀 Server is running on port ${PORT}`);
-    console.log(`📊 Health check: http://localhost:${PORT}/health`);
-    console.log(`📈 Status API: http://localhost:${PORT}/api/status`);
-    console.log(`🌐 Root endpoint: http://localhost:${PORT}/`);
+    app.listen(PORT, '0.0.0.0', () => {
+    const ip = require('ip');
+    console.log(`🚀 Server is running on http://${ip.address()}:${PORT}`);
+    console.log(`📊 Health check: http://${ip.address()}:${PORT}/health`);
+    console.log(`📈 Status API: http://${ip.address()}:${PORT}/api/status`);
+    console.log(`🌐 Root endpoint: http://${ip.address()}:${PORT}/`);
   });
+
 }
 
 // Graceful shutdown
