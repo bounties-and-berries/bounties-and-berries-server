@@ -9,7 +9,7 @@ const files = [
   'user.sql',
   'reward.sql',
   'bounty.sql',
-  'add_unique_name_to_bounty.sql', // new migration
+  'add_image_hash_to_bounty.sql', // add image_hash column
   'user_bounty_participation.sql',
   'user_reward_claim.sql',
 ];

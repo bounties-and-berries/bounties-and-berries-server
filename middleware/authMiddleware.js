@@ -44,6 +44,8 @@ const permissions = {
     'claimReward'
   ],
   faculty: [
+    'createBounty',
+    'editBounty',
     'viewBounties',
     'joinBounty',
     'viewOwnParticipation',

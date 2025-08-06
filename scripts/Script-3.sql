@@ -1,0 +1,1 @@
+  SELECT * FROM bounties ORDER BY id ASC;

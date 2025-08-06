@@ -1,0 +1,1 @@
+ALTER TABLE reward ADD COLUMN berries_required BIGINT NOT NULL DEFAULT 0;
