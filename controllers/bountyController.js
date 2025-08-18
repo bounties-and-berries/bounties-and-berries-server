@@ -310,6 +310,8 @@ exports.searchAndFilterBounties = async (req, res) => {
   } catch (err) {
     if (err.message.includes('USER_ID_REQUIRED_FOR_COMPLETED')) {
       res.status(400).json({ error: 'User authentication required for completed status' });
+    } else if (err.message.includes('USER_ID_REQUIRED_FOR_REGISTERED')) {
+      res.status(400).json({ error: 'User authentication required for registered status' });
     } else {
       res.status(500).json({ error: 'Failed to search bounties', details: err.message });
     }

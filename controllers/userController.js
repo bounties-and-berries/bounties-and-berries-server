@@ -11,8 +11,8 @@ const createUser = async (req, res, next) => {
       throw new ApiError('Forbidden: Only admin can create users', 403);
     }
 
-    const { mobile, name, role, college_id } = req.body;
-    const result = await userService.createUser({ mobile, name, role, college_id });
+    const { mobile, name, role, college_id, can_review_point_requests } = req.body;
+    const result = await userService.createUser({ mobile, name, role, college_id, can_review_point_requests });
     res.status(201).json(result);
   } catch (err) {
     if (err.message.includes('MISSING_REQUIRED_FIELDS')) {

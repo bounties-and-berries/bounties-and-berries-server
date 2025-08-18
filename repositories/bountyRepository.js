@@ -255,6 +255,22 @@ class BountyRepository {
       throw new Error(`Database error in findWithRegistrationStatus: ${error.message}`);
     }
   }
+
+  async findRegisteredByUser(userId) {
+    try {
+      const query = `
+        SELECT b.* 
+        FROM bounty b
+        JOIN user_bounty_participation ubp ON b.id = ubp.bounty_id
+        WHERE b.is_active = TRUE AND ubp.user_id = $1 AND ubp.status = 'registered'
+        ORDER BY b.scheduled_date ASC
+      `;
+      const result = await pool.query(query, [userId]);
+      return result.rows;
+    } catch (error) {
+      throw new Error(`Database error in findRegisteredByUser: ${error.message}`);
+    }
+  }
 }
 
 module.exports = new BountyRepository(); 

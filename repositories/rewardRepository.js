@@ -64,14 +64,14 @@ class RewardRepository {
   async create(rewardData) {
     try {
       const query = `
-        INSERT INTO reward (name, description, berries_spent, expiry_date, img_url, image_hash, created_by, modified_by) 
+        INSERT INTO reward (name, description, berries_required, expiry_date, img_url, image_hash, created_by, modified_by) 
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) 
         RETURNING *
       `;
       const values = [
         rewardData.name,
         rewardData.description,
-        rewardData.berries_spent,
+        rewardData.berries_required,
         rewardData.expiry_date,
         rewardData.img_url,
         rewardData.image_hash,
@@ -158,16 +158,16 @@ class RewardRepository {
       let paramIndex = 1;
 
       if (minBerries !== undefined) {
-        query += ` AND berries_spent >= $${paramIndex++}`;
+        query += ` AND berries_required >= $${paramIndex++}`;
         params.push(minBerries);
       }
 
       if (maxBerries !== undefined) {
-        query += ` AND berries_spent <= $${paramIndex++}`;
+        query += ` AND berries_required <= $${paramIndex++}`;
         params.push(maxBerries);
       }
 
-      query += ' ORDER BY berries_spent ASC';
+      query += ' ORDER BY berries_required ASC';
       const result = await pool.query(query, params);
       return result.rows;
     } catch (error) {

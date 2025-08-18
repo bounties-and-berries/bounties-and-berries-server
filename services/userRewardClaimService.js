@@ -295,7 +295,7 @@ class UserRewardClaimService {
           throw new Error('REWARD_ALREADY_CLAIMED');
         }
         
-        // 5. Calculate user's net berries (atomic calculation)
+        // 5. Calculate user's net berries (atomic calculation) - only from COMPLETED bounties
         const earningsResult = await client.query(`
           SELECT 
             COALESCE(SUM(berries_earned), 0) as total_berries_earned
@@ -314,7 +314,7 @@ class UserRewardClaimService {
         const availableBerries = totalEarned - totalSpent;
         
         // 6. Validate sufficient berries
-        if (availableBerries < reward.berries_spent) {
+        if (availableBerries < reward.berries_required) {
           throw new Error('INSUFFICIENT_BERRIES');
         }
         
@@ -325,7 +325,7 @@ class UserRewardClaimService {
         const claimData = {
           user_id: userId,
           reward_id: rewardId,
-          berries_spent: reward.berries_spent,
+          berries_spent: reward.berries_required,
           redeemable_code: redeemableCode,
           created_by: createdBy,
           modified_by: createdBy
@@ -349,9 +349,9 @@ class UserRewardClaimService {
         
         return {
           claim,
-          remaining_berries: availableBerries - reward.berries_spent,
+          remaining_berries: availableBerries - reward.berries_required,
           reward_name: reward.name,
-          berries_spent: reward.berries_spent
+          berries_spent: reward.berries_required
         };
       });
     } catch (error) {

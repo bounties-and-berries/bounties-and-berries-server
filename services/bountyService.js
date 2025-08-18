@@ -286,6 +286,11 @@ class BountyService {
           throw new Error('USER_ID_REQUIRED_FOR_COMPLETED');
         }
         return await bountyRepository.findCompletedByUser(userId);
+      } else if (status === 'registered') {
+        if (!userId) {
+          throw new Error('USER_ID_REQUIRED_FOR_REGISTERED');
+        }
+        return await bountyRepository.findRegisteredByUser(userId);
       } else if (status === 'trending') {
         return await bountyRepository.findTrending();
       }

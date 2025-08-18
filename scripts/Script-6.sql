@@ -1,1 +1,0 @@
-   SELECT id, name, scheduled_date FROM bounty WHERE scheduled_date > NOW();

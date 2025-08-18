@@ -31,7 +31,7 @@ exports.getRewardById = async (req, res) => {
 // Create a reward (only creators)
 exports.createReward = async (req, res) => {
   try {
-    const { name, description, berries_spent, expiry_date, ...otherFields } = req.body;
+    const { name, description, berries_required, expiry_date, ...otherFields } = req.body;
     const createdBy = req.user.id;
 
     // Handle file upload
@@ -54,7 +54,7 @@ exports.createReward = async (req, res) => {
     const rewardData = {
       name,
       description,
-      berries_spent,
+      berries_required,
       expiry_date,
       img_url,
       image_hash,
@@ -66,9 +66,9 @@ exports.createReward = async (req, res) => {
     res.status(201).json(reward);
   } catch (err) {
     if (err.message.includes('NAME_REQUIRED')) {
-      res.status(400).json({ error: 'Name and berries_spent are required' });
-    } else if (err.message.includes('BERRIES_SPENT_REQUIRED')) {
-      res.status(400).json({ error: 'Berries spent must be greater than 0' });
+      res.status(400).json({ error: 'Name and berries_required are required' });
+    } else if (err.message.includes('BERRIES_REQUIRED_REQUIRED')) {
+      res.status(400).json({ error: 'Berries required must be greater than 0' });
     } else if (err.message.includes('DUPLICATE_NAME')) {
       res.status(409).json({ error: 'A reward with this name already exists' });
     } else if (err.message.includes('INVALID_EXPIRY_DATE')) {
@@ -84,7 +84,7 @@ exports.updateReward = async (req, res) => {
   try {
     const { id } = req.params;
     const userId = req.user.id;
-    const { name, description, berries_spent, expiry_date, ...otherFields } = req.body;
+    const { name, description, berries_required, expiry_date, ...otherFields } = req.body;
 
     // Handle file upload
     let image_hash = null;
@@ -120,7 +120,7 @@ exports.updateReward = async (req, res) => {
     const updateData = {
       name,
       description,
-      berries_spent,
+      berries_required,
       expiry_date,
       img_url,
       image_hash,
@@ -136,8 +136,8 @@ exports.updateReward = async (req, res) => {
       res.status(403).json({ error: 'Forbidden: not the creator' });
     } else if (err.message.includes('NAME_REQUIRED')) {
       res.status(400).json({ error: 'Name is required' });
-    } else if (err.message.includes('BERRIES_SPENT_REQUIRED')) {
-      res.status(400).json({ error: 'Berries spent must be greater than 0' });
+    } else if (err.message.includes('BERRIES_REQUIRED_REQUIRED')) {
+      res.status(400).json({ error: 'Berries required must be greater than 0' });
     } else if (err.message.includes('DUPLICATE_NAME')) {
       res.status(409).json({ error: 'A reward with this name already exists' });
     } else if (err.message.includes('INVALID_EXPIRY_DATE')) {
@@ -187,10 +187,10 @@ exports.claimReward = async (req, res) => {
     // For now, we'll use the existing logic but move it to service layer later
     const pool = require('../config/db');
     
-    // Calculate total berries earned
+    // Calculate total berries earned from COMPLETED bounties only
     const earnedResult = await pool.query(
-      'SELECT COALESCE(SUM(berries_earned), 0) AS total_earned FROM user_bounty_participation WHERE user_id = $1',
-      [userId]
+      'SELECT COALESCE(SUM(berries_earned), 0) AS total_earned FROM user_bounty_participation WHERE user_id = $1 AND status = $2',
+      [userId, 'completed']
     );
     const totalEarned = parseInt(earnedResult.rows[0].total_earned, 10);
     
@@ -205,7 +205,7 @@ exports.claimReward = async (req, res) => {
     const availableBerries = totalEarned - totalSpent;
     
     // Check if user has enough berries
-    if (availableBerries < claimCheck.reward.berries_spent) {
+    if (availableBerries < claimCheck.reward.berries_required) {
       return res.status(400).json({ error: 'Not enough berries to claim this reward' });
     }
     
@@ -213,14 +213,14 @@ exports.claimReward = async (req, res) => {
     await pool.query('BEGIN');
     const claimResult = await pool.query(
       'INSERT INTO user_reward_claim (user_id, reward_id, berries_spent, redeemable_code, created_by, modified_by) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
-      [userId, claimCheck.reward.id, claimCheck.reward.berries_spent, Math.random().toString(36).substring(2, 10).toUpperCase(), userId, userId]
+      [userId, claimCheck.reward.id, claimCheck.reward.berries_required, Math.random().toString(36).substring(2, 10).toUpperCase(), userId, userId]
     );
     await pool.query('COMMIT');
     
     res.status(201).json({
       message: 'Reward claimed successfully',
-      reward: { id: claimCheck.reward.id, name: claimCheck.reward.name, cost: claimCheck.reward.berries_spent },
-      remaining_berries: availableBerries - claimCheck.reward.berries_spent,
+      reward: { id: claimCheck.reward.id, name: claimCheck.reward.name, cost: claimCheck.reward.berries_required },
+      remaining_berries: availableBerries - claimCheck.reward.berries_required,
       claim_id: claimResult.rows[0].id,
       redeem_code: claimResult.rows[0].redeemable_code
     });

@@ -1,4 +1,4 @@
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const userRepository = require('../repositories/userRepository');
 const TransactionUtils = require('../utils/transactionUtils');
@@ -52,15 +52,16 @@ class UserService {
 
         // 6. Create user record
         const userResult = await client.query(`
-          INSERT INTO "user" (mobile, name, role_id, password, college_id, created_on)
-          VALUES ($1, $2, $3, $4, $5, NOW())
+          INSERT INTO "user" (mobile, name, role_id, password, college_id, can_review_point_requests, created_on)
+          VALUES ($1, $2, $3, $4, $5, $6, NOW())
           RETURNING *
         `, [
           userData.mobile.trim(),
           userData.name.trim(),
           roleResult.rows[0].id,
           hashedPassword,
-          userData.college_id
+          userData.college_id,
+          userData.can_review_point_requests || false
         ]);
 
         const createdUser = userResult.rows[0];

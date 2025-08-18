@@ -16,6 +16,8 @@ const userRewardClaimRoutes = require('./routes/userRewardClaim');
 const imageRouter = require('./routes/image');
 const collegeRoutes = require('./routes/college');
 const roleRoutes = require('./routes/role');
+const pointRequestRoutes = require('./routes/pointRequest');
+const achievementRoutes = require('./routes/achievement');
 
 // Import middleware
 const { errorHandler } = require('./middleware/errorHandler');
@@ -40,9 +42,11 @@ app.use(morgan('combined')); // Logging
 app.use(express.json()); // Parse JSON bodies
 app.use(express.urlencoded({ extended: true })); // Parse URL-encoded bodies
 
-// Ensure uploads/images directory exists
+// Ensure uploads directories exist
 const uploadDir = path.join(__dirname, 'uploads', 'images');
+const pointRequestUploadDir = path.join(__dirname, 'uploads', 'point_request_evidence');
 fs.mkdirSync(uploadDir, { recursive: true });
+fs.mkdirSync(pointRequestUploadDir, { recursive: true });
 // Serve uploads directory statically
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
@@ -57,6 +61,8 @@ app.use('/api/user-reward-claim', userRewardClaimRoutes);
 app.use('/api/image', imageRouter);
 app.use('/api/college', collegeRoutes);
 app.use('/api/role', roleRoutes);
+app.use('/api/point-requests', pointRequestRoutes);
+app.use('/api/achievements', achievementRoutes);
 
 // Health check endpoint
 app.get('/health', (req, res) => {

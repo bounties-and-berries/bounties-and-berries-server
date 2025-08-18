@@ -32,32 +32,27 @@ function authorizeRoles(...roles) {
 // Role-based permissions config
 const permissions = {
   admin: [
-    'createBounty',
-    'editBounty',
-    'deleteBounty',
-    'viewAllBounties',
-    'viewBounties',
-    'joinBounty',
-    'viewOwnParticipation',
-    'manageUsers',
-    'viewRewards',
-    'claimReward'
+    'viewAllUsers', 'createUser', 'updateUser', 'deleteUser',
+    'viewAllColleges', 'createCollege', 'updateCollege', 'deleteCollege',
+    'viewAllRoles', 'createRole', 'updateRole', 'deleteRole',
+    'viewAllBounties', 'createBounty', 'updateBounty', 'deleteBounty',
+    'viewAllRewards', 'createReward', 'updateReward', 'deleteReward',
+    'viewAllPointRequests', 'viewAllAchievements', 'manageAchievements'
   ],
   faculty: [
-    'createBounty',
-    'editBounty',
-    'viewBounties',
-    'joinBounty',
-    'viewOwnParticipation',
-    'viewRewards',
-    'claimReward'
+    'viewOwnProfile', 'updateOwnProfile',
+    'viewAllBounties', 'createBounty', 'updateBounty',
+    'viewAllRewards', 'createReward', 'updateReward',
+    'reviewPointRequests', 'approvePointRequest', 'denyPointRequest',
+    'viewOwnAchievements'
   ],
   student: [
-    'viewBounties',
-    'joinBounty',
-    'viewOwnParticipation',
-    'viewRewards',
-    'claimReward'
+    'viewOwnProfile', 'updateOwnProfile',
+    'viewBounties', 'participateInBounty', 'viewOwnParticipation',
+    'viewRewards', 'claimReward', 'viewOwnClaims',
+    'submitPointRequest', 'viewOwnPointRequests', 'editOwnPointRequest', 
+    'uploadEvidence', 'viewEvidence', 'deleteOwnPointRequest',
+    'viewOwnAchievements'
   ]
 };
 

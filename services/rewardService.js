@@ -28,8 +28,8 @@ class RewardService {
         throw new Error('NAME_REQUIRED');
       }
 
-      if (!rewardData.berries_spent || rewardData.berries_spent <= 0) {
-        throw new Error('BERRIES_SPENT_REQUIRED');
+      if (!rewardData.berries_required || rewardData.berries_required <= 0) {
+        throw new Error('BERRIES_REQUIRED_REQUIRED');
       }
 
       // Check for duplicate name
@@ -47,7 +47,7 @@ class RewardService {
       const normalizedData = {
         name: rewardData.name.trim(),
         description: rewardData.description?.trim() || null,
-        berries_spent: rewardData.berries_spent,
+        berries_required: rewardData.berries_required,
         expiry_date: rewardData.expiry_date || null,
         img_url: rewardData.img_url || null,
         image_hash: rewardData.image_hash || null,
@@ -68,8 +68,8 @@ class RewardService {
         throw new Error('NAME_REQUIRED');
       }
 
-      if (updateData.berries_spent !== undefined && updateData.berries_spent <= 0) {
-        throw new Error('BERRIES_SPENT_REQUIRED');
+      if (updateData.berries_required !== undefined && updateData.berries_required <= 0) {
+        throw new Error('BERRIES_REQUIRED_REQUIRED');
       }
 
       // Check if reward exists
@@ -104,8 +104,8 @@ class RewardService {
       if (updateData.description !== undefined) {
         normalizedData.description = updateData.description?.trim() || null;
       }
-      if (updateData.berries_spent !== undefined) {
-        normalizedData.berries_spent = updateData.berries_spent;
+      if (updateData.berries_required !== undefined) {
+        normalizedData.berries_required = updateData.berries_required;
       }
       if (updateData.expiry_date !== undefined) {
         normalizedData.expiry_date = updateData.expiry_date;

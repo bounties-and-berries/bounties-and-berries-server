@@ -126,7 +126,27 @@ class BountyParticipationService {
         normalizedData.modified_by = updateData.modified_by;
       }
 
-      return await bountyParticipationRepository.update(id, normalizedData);
+      // Update the participation
+      const updatedParticipation = await bountyParticipationRepository.update(id, normalizedData);
+
+      // Trigger achievement check if status changed to 'completed'
+      if (updateData.status === 'completed' && existing.status !== 'completed') {
+        try {
+          const achievementService = require('./achievementService');
+          const newAchievements = await achievementService.checkForNewAchievements(existing.user_id);
+          
+          // Log new achievements for debugging
+          if (newAchievements.length > 0) {
+            console.log(`User ${existing.user_id} earned ${newAchievements.length} new achievements:`, 
+              newAchievements.map(a => a.name));
+          }
+        } catch (achievementError) {
+          // Log achievement error but don't fail the main operation
+          console.error('Error checking achievements:', achievementError);
+        }
+      }
+
+      return updatedParticipation;
     } catch (error) {
       throw new Error(`Service error in updateParticipation: ${error.message}`);
     }

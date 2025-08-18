@@ -13,7 +13,11 @@ function getUpload(category) {
       cb(null, Date.now() + '_' + file.originalname);
     }
   });
-  return multer({ storage });
+  
+  // Configure multer to handle both files and text fields
+  return multer({ 
+    storage
+  });
 }
 
 module.exports = getUpload;
