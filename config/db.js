@@ -5,7 +5,7 @@ const pool = new Pool({
   user: process.env.DB_USER || 'postgres',
   host: process.env.DB_HOST || 'mydatabase.calkki2y43ti.us-east-1.rds.amazonaws.com',
   database: process.env.DB_NAME || 'postgres',
-  password: process.env.DB_PASSWORD || '9742810008',
+  password: process.env.DB_PASSWORD || 'Goal1bnaws',
   port: process.env.DB_PORT || 5432,
   // Connection pool settings
   max: 20,
