@@ -2,11 +2,17 @@ const { Pool } = require('pg');
 require('dotenv').config();
 
 const pool = new Pool({
-  user: process.env.DB_USER || 'postgres',
+  user: 'postgres',
+  host: 'rdspg176.calkki2y43ti.us-east-1.rds.amazonaws.com',
+  database:  'postgres',
+  password: 'Goal1bnaws',
+  port:  5432,
+
+/*user: process.env.DB_USER || 'postgres',
   host: process.env.DB_HOST || 'rdspg176.calkki2y43ti.us-east-1.rds.amazonaws.com',
   database: process.env.DB_NAME || 'postgres',
   password: process.env.DB_PASSWORD || 'Goal1bnaws',
-  port: process.env.DB_PORT || 5432,
+  port: process.env.DB_PORT || 5432,*/
   // Connection pool settings
   max: 20,
   idleTimeoutMillis: 30000,
