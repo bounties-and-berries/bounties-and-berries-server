@@ -13,3 +13,4 @@ CREATE INDEX IF NOT EXISTS idx_ubp_status_completed ON user_bounty_participation
 -- Add comment
 COMMENT ON COLUMN user_bounty_participation.completed_at IS 'Timestamp when bounty was completed (for achievement calculations)';
 
+

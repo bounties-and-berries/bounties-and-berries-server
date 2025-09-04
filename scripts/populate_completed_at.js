@@ -5,7 +5,6 @@ const pool = require('../config/db');
  * This helps the achievement system work with existing data
  */
 async function populateCompletedAt() {
-  const client = await pool.connect();
   try {
     console.log('🔄 Starting to populate completed_at field...');
     
@@ -18,7 +17,7 @@ async function populateCompletedAt() {
         AND modified_on IS NOT NULL
     `;
     
-    const result = await client.query(updateQuery);
+    const result = await pool.query(updateQuery);
     console.log(`✅ Updated ${result.rowCount} completed bounties with completed_at timestamp`);
     
     // Show summary
@@ -32,7 +31,7 @@ async function populateCompletedAt() {
       ORDER BY status
     `;
     
-    const summary = await client.query(summaryQuery);
+    const summary = await pool.query(summaryQuery);
     console.log('\n📊 Current status summary:');
     summary.rows.forEach(row => {
       console.log(`  ${row.status}: ${row.count} total, ${row.with_completed_at} with completed_at`);
@@ -43,7 +42,6 @@ async function populateCompletedAt() {
   } catch (error) {
     console.error('❌ Error populating completed_at:', error);
   } finally {
-    client.release();
     process.exit();
   }
 }

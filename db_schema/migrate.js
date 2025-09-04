@@ -18,19 +18,17 @@ const files = [
 ];
 
 async function runMigrations() {
-  const client = await pool.connect();
   try {
     for (const file of files) {
       const filePath = path.join(__dirname, file);
       const sql = fs.readFileSync(filePath, 'utf8');
       console.log(`Running migration: ${file}`);
-      await client.query(sql);
+      await pool.query(sql);
     }
     console.log('✅ All migrations executed successfully!');
   } catch (err) {
     console.error('❌ Migration error:', err);
   } finally {
-    client.release();
     process.exit();
   }
 }
