@@ -1,0 +1,310 @@
+{
+  "timestamp": "2025-08-27T09:36:03.314Z",
+  "summary": {
+    "totalBackendAPIs": 60,
+    "totalFrontendAPIs": 3,
+    "integratedAPIs": 18,
+    "missingAPIs": 42,
+    "unknownAPIs": 0,
+    "integrationPercentage": 30
+  },
+  "details": {
+    "integrated": [
+      "POST /api/auth/login",
+      "GET /api/bounties",
+      "GET /api/bounties/admin/all",
+      "POST /api/bounties/search",
+      "GET /api/bounties/:id",
+      "POST /api/bounties",
+      "PUT /api/bounties/:id",
+      "DELETE /api/bounties/:id",
+      "PATCH /api/bounties/:name",
+      "POST /api/bounties/register/:bountyId",
+      "GET /api/reward",
+      "GET /api/reward/:id",
+      "POST /api/reward",
+      "PUT /api/reward/:id",
+      "DELETE /api/reward/:id",
+      "POST /api/reward/:id/claim",
+      "GET /api/reward/user/claimed",
+      "POST /api/reward/search"
+    ],
+    "missing": [
+      "POST /api/users",
+      "POST /api/users/bulk",
+      "POST /api/users/change-password",
+      "PATCH /api/users/profile-image",
+      "GET /api/achievement/:userId",
+      "POST /api/achievement",
+      "PUT /api/achievement/:id",
+      "DELETE /api/achievement/:id",
+      "GET /api/pointRequest/reviewers",
+      "GET /api/pointRequest/my-requests",
+      "GET /api/pointRequest/assigned",
+      "POST /api/pointRequest/with-evidence",
+      "PUT /api/pointRequest/:id/review",
+      "GET /api/college",
+      "GET /api/college/search",
+      "GET /api/college/:id",
+      "POST /api/college",
+      "PUT /api/college/:id",
+      "PATCH /api/college/:id",
+      "DELETE /api/college/:id",
+      "GET /api/college/admin/all",
+      "GET /api/role",
+      "GET /api/role/:id",
+      "POST /api/role",
+      "PUT /api/role/:id",
+      "PATCH /api/role/:id",
+      "DELETE /api/role/:id",
+      "GET /api/status",
+      "GET /api/status/detailed",
+      "GET /api/status/health",
+      "GET /api/bountyParticipation/earnings/:userId",
+      "GET /api/bountyParticipation/net-berries/:userId",
+      "GET /api/bountyParticipation/bounty/:bountyId",
+      "POST /api/bountyParticipation",
+      "GET /api/bountyParticipation",
+      "PUT /api/bountyParticipation/:id",
+      "DELETE /api/bountyParticipation/:id",
+      "POST /api/userRewardClaim",
+      "GET /api/userRewardClaim",
+      "PUT /api/userRewardClaim/:id",
+      "DELETE /api/userRewardClaim/:id",
+      "POST /api/image/upload/:category"
+    ],
+    "unknown": [],
+    "byRole": {
+      "admin": {
+        "integrated": [
+          "GET /api/bounties/admin/all"
+        ],
+        "missing": [
+          "POST /api/users",
+          "POST /api/users/bulk",
+          "POST /api/users/change-password",
+          "PATCH /api/users/profile-image",
+          "GET /api/college",
+          "GET /api/college/search",
+          "GET /api/college/:id",
+          "POST /api/college",
+          "PUT /api/college/:id",
+          "PATCH /api/college/:id",
+          "DELETE /api/college/:id",
+          "GET /api/college/admin/all",
+          "GET /api/role",
+          "GET /api/role/:id",
+          "POST /api/role",
+          "PUT /api/role/:id",
+          "PATCH /api/role/:id",
+          "DELETE /api/role/:id",
+          "GET /api/bountyParticipation/earnings/:userId",
+          "GET /api/bountyParticipation/net-berries/:userId",
+          "GET /api/bountyParticipation/bounty/:bountyId",
+          "POST /api/bountyParticipation",
+          "GET /api/bountyParticipation",
+          "PUT /api/bountyParticipation/:id",
+          "DELETE /api/bountyParticipation/:id",
+          "POST /api/userRewardClaim",
+          "GET /api/userRewardClaim",
+          "PUT /api/userRewardClaim/:id",
+          "DELETE /api/userRewardClaim/:id"
+        ]
+      },
+      "faculty": {
+        "integrated": [
+          "GET /api/bounties",
+          "GET /api/bounties/admin/all",
+          "POST /api/bounties/search",
+          "GET /api/bounties/:id",
+          "POST /api/bounties",
+          "PUT /api/bounties/:id",
+          "DELETE /api/bounties/:id",
+          "PATCH /api/bounties/:name",
+          "POST /api/bounties/register/:bountyId",
+          "GET /api/reward",
+          "GET /api/reward/:id",
+          "POST /api/reward",
+          "PUT /api/reward/:id",
+          "DELETE /api/reward/:id",
+          "POST /api/reward/:id/claim",
+          "GET /api/reward/user/claimed",
+          "POST /api/reward/search"
+        ],
+        "missing": [
+          "GET /api/achievement/:userId",
+          "POST /api/achievement",
+          "PUT /api/achievement/:id",
+          "DELETE /api/achievement/:id",
+          "GET /api/pointRequest/reviewers",
+          "GET /api/pointRequest/assigned",
+          "PUT /api/pointRequest/:id/review"
+        ]
+      },
+      "student": {
+        "integrated": [
+          "POST /api/bounties/search",
+          "POST /api/bounties/register/:bountyId",
+          "POST /api/reward/:id/claim",
+          "GET /api/reward/user/claimed"
+        ],
+        "missing": [
+          "POST /api/users/change-password",
+          "PATCH /api/users/profile-image",
+          "GET /api/pointRequest/reviewers",
+          "GET /api/pointRequest/my-requests",
+          "POST /api/pointRequest/with-evidence"
+        ]
+      }
+    },
+    "byPriority": {
+      "critical": [
+        "GET /api/status",
+        "GET /api/status/detailed",
+        "GET /api/status/health"
+      ],
+      "high": [
+        "POST /api/users",
+        "POST /api/users/bulk",
+        "POST /api/users/change-password",
+        "PATCH /api/users/profile-image",
+        "GET /api/achievement/:userId",
+        "POST /api/achievement",
+        "PUT /api/achievement/:id",
+        "DELETE /api/achievement/:id",
+        "GET /api/pointRequest/reviewers",
+        "GET /api/pointRequest/my-requests",
+        "GET /api/pointRequest/assigned",
+        "POST /api/pointRequest/with-evidence",
+        "PUT /api/pointRequest/:id/review"
+      ],
+      "medium": [
+        "GET /api/college",
+        "GET /api/college/search",
+        "GET /api/college/:id",
+        "POST /api/college",
+        "PUT /api/college/:id",
+        "PATCH /api/college/:id",
+        "DELETE /api/college/:id",
+        "GET /api/college/admin/all",
+        "GET /api/role",
+        "GET /api/role/:id",
+        "POST /api/role",
+        "PUT /api/role/:id",
+        "PATCH /api/role/:id",
+        "DELETE /api/role/:id",
+        "GET /api/bountyParticipation/earnings/:userId",
+        "GET /api/bountyParticipation/net-berries/:userId",
+        "GET /api/bountyParticipation/bounty/:bountyId",
+        "POST /api/bountyParticipation",
+        "GET /api/bountyParticipation",
+        "PUT /api/bountyParticipation/:id",
+        "DELETE /api/bountyParticipation/:id",
+        "POST /api/userRewardClaim",
+        "GET /api/userRewardClaim",
+        "PUT /api/userRewardClaim/:id",
+        "DELETE /api/userRewardClaim/:id",
+        "POST /api/image/upload/:category"
+      ],
+      "low": [
+        "GET /api/college/admin/all",
+        "GET /api/status/detailed",
+        "GET /api/status/health"
+      ]
+    }
+  },
+  "recommendations": [
+    {
+      "priority": "CRITICAL",
+      "action": "Implement immediately",
+      "apis": [
+        "GET /api/status",
+        "GET /api/status/detailed",
+        "GET /api/status/health"
+      ],
+      "impact": "Application may not function without these APIs"
+    },
+    {
+      "priority": "HIGH",
+      "action": "Implement in next sprint",
+      "apis": [
+        "POST /api/users",
+        "POST /api/users/bulk",
+        "POST /api/users/change-password",
+        "PATCH /api/users/profile-image",
+        "GET /api/achievement/:userId",
+        "POST /api/achievement",
+        "PUT /api/achievement/:id",
+        "DELETE /api/achievement/:id",
+        "GET /api/pointRequest/reviewers",
+        "GET /api/pointRequest/my-requests",
+        "GET /api/pointRequest/assigned",
+        "POST /api/pointRequest/with-evidence",
+        "PUT /api/pointRequest/:id/review"
+      ],
+      "impact": "Core user functionality affected"
+    },
+    {
+      "priority": "ROLE-SPECIFIC",
+      "action": "Implement admin features",
+      "apis": [
+        "POST /api/users",
+        "POST /api/users/bulk",
+        "POST /api/users/change-password",
+        "PATCH /api/users/profile-image",
+        "GET /api/college",
+        "GET /api/college/search",
+        "GET /api/college/:id",
+        "POST /api/college",
+        "PUT /api/college/:id",
+        "PATCH /api/college/:id",
+        "DELETE /api/college/:id",
+        "GET /api/college/admin/all",
+        "GET /api/role",
+        "GET /api/role/:id",
+        "POST /api/role",
+        "PUT /api/role/:id",
+        "PATCH /api/role/:id",
+        "DELETE /api/role/:id",
+        "GET /api/bountyParticipation/earnings/:userId",
+        "GET /api/bountyParticipation/net-berries/:userId",
+        "GET /api/bountyParticipation/bounty/:bountyId",
+        "POST /api/bountyParticipation",
+        "GET /api/bountyParticipation",
+        "PUT /api/bountyParticipation/:id",
+        "DELETE /api/bountyParticipation/:id",
+        "POST /api/userRewardClaim",
+        "GET /api/userRewardClaim",
+        "PUT /api/userRewardClaim/:id",
+        "DELETE /api/userRewardClaim/:id"
+      ],
+      "impact": "admin users missing key functionality"
+    },
+    {
+      "priority": "ROLE-SPECIFIC",
+      "action": "Implement faculty features",
+      "apis": [
+        "GET /api/achievement/:userId",
+        "POST /api/achievement",
+        "PUT /api/achievement/:id",
+        "DELETE /api/achievement/:id",
+        "GET /api/pointRequest/reviewers",
+        "GET /api/pointRequest/assigned",
+        "PUT /api/pointRequest/:id/review"
+      ],
+      "impact": "faculty users missing key functionality"
+    },
+    {
+      "priority": "ROLE-SPECIFIC",
+      "action": "Implement student features",
+      "apis": [
+        "POST /api/users/change-password",
+        "PATCH /api/users/profile-image",
+        "GET /api/pointRequest/reviewers",
+        "GET /api/pointRequest/my-requests",
+        "POST /api/pointRequest/with-evidence"
+      ],
+      "impact": "student users missing key functionality"
+    }
+  ]
+}

@@ -56,12 +56,12 @@ const bulkCreateUsers = async (req, res, next) => {
 
 const changePassword = async (req, res, next) => {
   try {
-    const { mobile, name, oldPassword, newPassword, role } = req.body;
-    const result = await userService.changePassword(mobile, name, role, oldPassword, newPassword, req.user);
+    const { oldPassword, newPassword } = req.body;
+    const result = await userService.changePassword(oldPassword, newPassword, req.user);
     res.json(result);
   } catch (err) {
     if (err.message.includes('MISSING_REQUIRED_FIELDS')) {
-      next(new ApiError('mobile, name, oldPassword, newPassword, and role are required', 400));
+      next(new ApiError('oldPassword and newPassword are required', 400));
     } else if (err.message.includes('USER_NOT_FOUND')) {
       next(new ApiError('User not found', 404));
     } else if (err.message.includes('UNAUTHORIZED_PASSWORD_CHANGE')) {
@@ -182,6 +182,152 @@ const searchUsersByMobile = async (req, res, next) => {
   }
 };
 
+// Get current user profile
+const getCurrentUser = async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    const user = await userService.getUserById(userId);
+    res.json({ success: true, data: user });
+  } catch (err) {
+    if (err.message.includes('USER_NOT_FOUND')) {
+      next(new ApiError('User not found', 404));
+    } else {
+      next(new ApiError('Failed to fetch current user', 500));
+    }
+  }
+};
+
+// Update current user profile
+const updateCurrentUser = async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    const updateData = req.body;
+    delete updateData.password;
+    delete updateData.role_id;
+    delete updateData.is_active;
+    const user = await userService.updateUser(userId, updateData);
+    res.json({ success: true, data: user, message: 'Profile updated successfully' });
+  } catch (err) {
+    if (err.message.includes('USER_NOT_FOUND')) {
+      next(new ApiError('User not found', 404));
+    } else {
+      next(new ApiError('Failed to update profile', 500));
+    }
+  }
+};
+
+// Get user statistics
+const getUserStats = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const pool = require('../config/db');
+    
+    const earningsQuery = `
+      SELECT 
+        COALESCE(SUM(points_earned), 0) as total_points_earned,
+        COALESCE(SUM(berries_earned), 0) as total_berries_earned
+      FROM user_bounty_participation
+      WHERE user_id = $1 AND status = 'completed'
+    `;
+    const { rows: earnings } = await pool.query(earningsQuery, [id]);
+    
+    const spentQuery = `
+      SELECT COALESCE(SUM(berries_spent), 0) as total_berries_spent
+      FROM user_reward_claim
+      WHERE user_id = $1
+    `;
+    const { rows: spent } = await pool.query(spentQuery, [id]);
+    
+    const achievementsQuery = `
+      SELECT 
+        COUNT(*) as total_bounties_completed,
+        COUNT(DISTINCT bounty_id) as unique_bounties
+      FROM user_bounty_participation
+      WHERE user_id = $1 AND status = 'completed'
+    `;
+    const { rows: achievements } = await pool.query(achievementsQuery, [id]);
+    
+    const rewardsQuery = `
+      SELECT COUNT(*) as total_rewards_claimed
+      FROM user_reward_claim
+      WHERE user_id = $1
+    `;
+    const { rows: rewards } = await pool.query(rewardsQuery, [id]);
+    
+    // PHASE C: Feature Flag Ledger SSOT Cutover with Canary Rollout
+    const ledgerReadsEnabled = process.env.LEDGER_READS_ENABLED === 'true';
+    const ledgerPercent = Number(process.env.LEDGER_READS_PERCENT || 100);
+    const useLedger = ledgerReadsEnabled && (Math.random() * 100 < ledgerPercent);
+
+    let currentBerries = 0;
+    const legacyBalance = parseInt(earnings[0].total_berries_earned) - parseInt(spent[0].total_berries_spent);
+
+    if (useLedger) {
+      const ledgerResult = await pool.query('SELECT balance FROM user_balance WHERE user_id = $1', [id]);
+      currentBerries = ledgerResult.rows.length > 0 ? parseInt(ledgerResult.rows[0].balance, 10) : 0;
+
+      // Silent Comparator Guardrail (2% sampling)
+      if (Math.random() < 0.02) {
+        if (currentBerries !== legacyBalance) {
+          console.error('[LEDGER_AUDIT] BALANCE_MISMATCH detected during cutover', { 
+            userId: id, 
+            cached: currentBerries, 
+            derived: legacyBalance 
+          });
+        }
+      }
+    } else {
+      currentBerries = legacyBalance;
+    }
+
+    res.json({
+      success: true,
+      data: {
+        points: {
+          total_earned: parseInt(earnings[0].total_points_earned),
+          current: parseInt(earnings[0].total_points_earned)
+        },
+        berries: {
+          total_earned: parseInt(earnings[0].total_berries_earned),
+          total_spent: parseInt(spent[0].total_berries_spent),
+          current: currentBerries
+        },
+        achievements: {
+          bounties_completed: parseInt(achievements[0].total_bounties_completed),
+          unique_bounties: parseInt(achievements[0].unique_bounties),
+          rewards_claimed: parseInt(rewards[0].total_rewards_claimed)
+        }
+      }
+    });
+  } catch (err) {
+    next(new ApiError('Failed to fetch user stats', 500));
+  }
+};
+
+// Manual berry grant
+const addBerriesToUser = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { amount } = req.body;
+    const adminId = req.user.id;
+    
+    if (req.user.role !== 'admin') {
+      throw new ApiError('Forbidden: Only admin can grant berries', 403);
+    }
+    
+    const result = await userService.addBerriesToUser(id, amount, adminId);
+    res.json(result);
+  } catch (err) {
+    if (err.message.includes('USER_NOT_FOUND')) {
+      next(new ApiError('User not found', 404));
+    } else if (err.message.includes('INVALID_AMOUNT')) {
+      next(new ApiError('Invalid amount', 400));
+    } else {
+      next(err);
+    }
+  }
+};
+
 module.exports = { 
   createUser, 
   bulkCreateUsers, 
@@ -193,5 +339,9 @@ module.exports = {
   updateUser,
   deleteUser,
   searchUsersByName,
-  searchUsersByMobile
-}; 
+  searchUsersByMobile,
+  getCurrentUser,
+  updateCurrentUser,
+  getUserStats,
+  addBerriesToUser
+};

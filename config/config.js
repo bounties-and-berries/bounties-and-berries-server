@@ -2,7 +2,7 @@ require('dotenv').config();
 
 const config = {
   // Server configuration
-  port: process.env.PORT || 443,
+  port: process.env.PORT || 3001,
   nodeEnv: process.env.NODE_ENV || 'development',
   
   // Application settings
@@ -17,6 +17,16 @@ const config = {
   
   // API settings
   apiPrefix: '/api',
+
+  // Database configuration
+  db: {
+    host: process.env.DB_HOST || '127.0.0.1',
+    user: process.env.DB_USER || 'postgres',
+    password: process.env.DB_PASSWORD,
+    database: process.env.DB_NAME || 'postgres',
+    port: parseInt(process.env.DB_PORT, 10) || 5432,
+    ssl: process.env.DB_SSL === 'true'
+  },
   
   // Server info
   serverInfo: {

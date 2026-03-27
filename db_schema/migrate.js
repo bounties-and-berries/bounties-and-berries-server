@@ -4,6 +4,7 @@ const pool = require('../config/db');
 
 // List SQL files in dependency order
 const files = [
+  '01_create_functions.sql', // create required functions first
   'role.sql',
   'college.sql',
   'user.sql',
@@ -15,6 +16,8 @@ const files = [
   'point_request.sql', // point request system
   'add_reviewer_capability.sql', // add reviewer capability to users
   'add_achievement_columns.sql', // add achievement system columns
+  'add_email_column.sql', // add email column to user table
+  'berry_rules.sql', // berry rules and purchases tables
 ];
 
 async function runMigrations() {

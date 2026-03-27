@@ -414,6 +414,22 @@ class BountyParticipationService {
           bountyId
         ]);
         
+        // Double-Entry Ledger Registration (Credit)
+        const ledgerService = require('./ledgerService');
+        const { v4: uuidv4 } = require('uuid');
+        
+        if (berriesEarned > 0) {
+          await ledgerService.credit({
+            idempotencyKey: uuidv4(),
+            userId: userId,
+            amount: berriesEarned,
+            referenceType: 'BOUNTY',
+            referenceId: updateResult.rows[0].id,
+            collegeId: participationRecord.college_id || null,
+            actorId: modifiedBy
+          });
+        }
+        
         return updateResult.rows[0];
       });
     } catch (error) {

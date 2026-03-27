@@ -10,9 +10,10 @@ class UserService {
 
   async createUser(userData) {
     try {
+
       return await TransactionUtils.withTransaction(async (client) => {
         // 1. Business logic validation
-        if (!userData.mobile || !userData.name || !userData.role || !userData.college_id) {
+        if (!userData.mobile || !userData.name || !userData.username || !userData.role || !userData.college_id) {
           throw new Error('MISSING_REQUIRED_FIELDS');
         }
 
@@ -21,7 +22,7 @@ class UserService {
           'SELECT id FROM "user" WHERE mobile = $1 FOR UPDATE',
           [userData.mobile.trim()]
         );
-        
+
         if (existingUser.rows.length > 0) {
           throw new Error('DUPLICATE_MOBILE');
         }
@@ -31,7 +32,7 @@ class UserService {
           'SELECT id FROM role WHERE name = $1 FOR UPDATE',
           [userData.role]
         );
-        
+
         if (roleResult.rows.length === 0) {
           throw new Error('INVALID_ROLE');
         }
@@ -41,7 +42,7 @@ class UserService {
           'SELECT id FROM college WHERE id = $1 FOR UPDATE',
           [userData.college_id]
         );
-        
+
         if (collegeResult.rows.length === 0) {
           throw new Error('INVALID_COLLEGE');
         }
@@ -52,16 +53,18 @@ class UserService {
 
         // 6. Create user record
         const userResult = await client.query(`
-          INSERT INTO "user" (mobile, name, role_id, password, college_id, can_review_point_requests, created_on)
-          VALUES ($1, $2, $3, $4, $5, $6, NOW())
+          INSERT INTO "user" (mobilenumber, mobile, name, username, role_id, password, college_id, can_review_point_requests, created_on)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
           RETURNING *
         `, [
-          userData.mobile.trim(),
-          userData.name.trim(),
-          roleResult.rows[0].id,
-          hashedPassword,
-          userData.college_id,
-          userData.can_review_point_requests || false
+          userData.mobile.trim(),      // $1 - mobilenumber
+          userData.mobile.trim(),      // $2 - mobile
+          userData.name.trim(),        // $3 - name
+          userData.username.trim(),    // $4 - username
+          roleResult.rows[0].id,       // $5 - role_id
+          hashedPassword,              // $6 - password
+          userData.college_id,         // $7 - college_id
+          userData.can_review_point_requests || false  // $8 - can_review_point_requests
         ]);
 
         const createdUser = userResult.rows[0];
@@ -122,25 +125,16 @@ class UserService {
     }
   }
 
-  async changePassword(mobile, name, role, oldPassword, newPassword, currentUser) {
+  async changePassword(oldPassword, newPassword, currentUser) {
     try {
-      // Business logic validation
-      if (!mobile || !name || !oldPassword || !newPassword || !role) {
+      if (!oldPassword || !newPassword) {
         throw new Error('MISSING_REQUIRED_FIELDS');
       }
 
-      // Find user in DB
-      const user = await userRepository.findByMobileAndNameAndRole(mobile, name, role);
+      // Find user via ID
+      const user = await userRepository.findById(currentUser.id);
       if (!user) {
         throw new Error('USER_NOT_FOUND');
-      }
-
-      // Authorization check
-      if (
-        currentUser.role !== 'admin' &&
-        (currentUser.mobile !== user.mobile || currentUser.name !== user.name)
-      ) {
-        throw new Error('UNAUTHORIZED_PASSWORD_CHANGE');
       }
 
       // If not admin, check old password
@@ -154,7 +148,7 @@ class UserService {
       // Update password
       const hashedPassword = await bcrypt.hash(newPassword, 10);
       const success = await userRepository.updatePassword(user.id, hashedPassword);
-      
+
       if (!success) {
         throw new Error('PASSWORD_UPDATE_FAILED');
       }
@@ -246,6 +240,24 @@ class UserService {
       if (updateData.img_url !== undefined) {
         normalizedData.img_url = updateData.img_url;
       }
+      if (updateData.department !== undefined) {
+        normalizedData.department = updateData.department;
+      }
+      if (updateData.year !== undefined) {
+        normalizedData.year = updateData.year;
+      }
+      if (updateData.push_notifications_enabled !== undefined) {
+        normalizedData.push_notifications_enabled = updateData.push_notifications_enabled;
+      }
+      if (updateData.email_notifications_enabled !== undefined) {
+        normalizedData.email_notifications_enabled = updateData.email_notifications_enabled;
+      }
+      if (updateData.level !== undefined) {
+        normalizedData.level = updateData.level;
+      }
+      if (updateData.xp !== undefined) {
+        normalizedData.xp = updateData.xp;
+      }
 
       return await userRepository.update(userId, normalizedData);
     } catch (error) {
@@ -286,6 +298,35 @@ class UserService {
       return await userRepository.searchByMobile(mobile.trim());
     } catch (error) {
       throw new Error(`Service error in searchUsersByMobile: ${error.message}`);
+    }
+  }
+
+  async addBerriesToUser(userId, amount, adminId) {
+    try {
+      const user = await userRepository.findById(userId);
+      if (!user) throw new Error('USER_NOT_FOUND');
+
+      const amountInt = parseInt(amount);
+      if (isNaN(amountInt) || amountInt <= 0) throw new Error('INVALID_AMOUNT');
+
+      return await TransactionUtils.withTransaction(async (client) => {
+        // Record manual berry grant as a participation with NULL bounty_id
+        await client.query(`
+          INSERT INTO user_bounty_participation 
+            (user_id, bounty_id, points_earned, berries_earned, status, created_by, modified_by, created_on)
+          VALUES ($1, NULL, 0, $2, 'completed', $3, $3, NOW())
+        `, [userId, amountInt, adminId.toString()]);
+
+        // Add a notification
+        await client.query(`
+          INSERT INTO notifications (user_id, title, message, type)
+          VALUES ($1, 'Berries Received', $2, 'reward')
+        `, [userId, `You have been granted ${amountInt} berries by Admin.`]);
+
+        return { success: true, message: `Successfully granted ${amountInt} berries to ${user.name}` };
+      });
+    } catch (error) {
+      throw new Error(`Service error in addBerriesToUser: ${error.message}`);
     }
   }
 }

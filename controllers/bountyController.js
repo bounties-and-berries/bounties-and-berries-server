@@ -1,13 +1,22 @@
-const { getFileHash } = require('../fileHash');
+const { getFileHash } = require('../scripts/fileHash');
 const fs = require('fs');
 const path = require('path');
 const bountyService = require('../services/bountyService');
+const { bountyCache } = require('../utils/cacheUtils');
 
 // Get all bounties
 exports.getAllBounties = async (req, res) => {
   try {
     const queryParams = req.query;
+    if (req.user && req.user.role !== 'admin') {
+      queryParams.college_id = req.user.college_id;
+    }
+    const cacheKey = 'all_' + JSON.stringify(queryParams);
+    const cached = bountyCache.get(cacheKey);
+    if (cached) return res.json(cached);
+
     const bounties = await bountyService.getAllBounties(queryParams);
+    bountyCache.set(cacheKey, bounties);
     res.json(bounties);
   } catch (err) {
     if (err.message.includes('COMPLETED_STATUS_REQUIRES_USER')) {
@@ -39,9 +48,14 @@ exports.createBounty = async (req, res) => {
     let image_hash = null;
     let img_url = null;
     if (req.file) {
-      img_url = `/uploads/bounty_imgs/${req.file.filename}`;
-      const fileBuffer = fs.readFileSync(req.file.path);
-      image_hash = getFileHash(fileBuffer);
+      img_url = req.file.location || `/uploads/bounty_imgs/${req.file.filename}`;
+      if (!req.file.location && req.file.path) {
+        // Only hash local files if stored locally
+        try {
+          const fileBuffer = fs.readFileSync(req.file.path);
+          image_hash = getFileHash(fileBuffer);
+        } catch(e) {}
+      }
     } else if (req.body.img_url) {
       img_url = req.body.img_url;
       try {
@@ -69,6 +83,7 @@ exports.createBounty = async (req, res) => {
     };
 
     const bounty = await bountyService.createBounty(bountyData);
+    bountyCache.clear(); // Invalidate cache on mutation
     res.status(201).json(bounty);
   } catch (err) {
     if (err.message.includes('NAME_REQUIRED')) {
@@ -122,19 +137,26 @@ exports.updateBounty = async (req, res) => {
     // Handle file upload
     let image_hash = null;
     let img_url = null;
-    
+
     // Get current bounty to check existing image
     const currentBounty = await bountyService.getBountyById(id);
-    
+
     if (req.file) {
-      img_url = `/uploads/bounty_imgs/${req.file.filename}`;
-      const fileBuffer = fs.readFileSync(req.file.path);
-      image_hash = getFileHash(fileBuffer);
+      img_url = req.file.location || `/uploads/bounty_imgs/${req.file.filename}`;
+      if (!req.file.location && req.file.path) {
+        try {
+          const fileBuffer = fs.readFileSync(req.file.path);
+          image_hash = getFileHash(fileBuffer);
+        } catch(e) {}
+      }
       // Delete old image if present
       if (currentBounty.img_url) {
-        const oldPath = path.join(__dirname, '..', currentBounty.img_url);
-        if (fs.existsSync(oldPath)) {
-          fs.unlinkSync(oldPath);
+        if (currentBounty.img_url.startsWith('http')) {
+          const { deleteFromS3 } = require('../middleware/uploadCategory');
+          deleteFromS3(currentBounty.img_url);
+        } else {
+          const oldPath = path.join(__dirname, '..', currentBounty.img_url);
+          if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
         }
       }
     } else if (req.body.img_url) {
@@ -166,6 +188,7 @@ exports.updateBounty = async (req, res) => {
     };
 
     const bounty = await bountyService.updateBounty(id, updateData);
+    bountyCache.clear(); // Invalidate cache on mutation
     res.json(bounty);
   } catch (err) {
     if (err.message.includes('BOUNTY_NOT_FOUND')) {
@@ -191,6 +214,7 @@ exports.deleteBounty = async (req, res) => {
   try {
     const { id } = req.params;
     const bounty = await bountyService.deleteBounty(id);
+    bountyCache.clear(); // Invalidate cache on mutation
     res.json({ message: 'Bounty soft deleted', bounty });
   } catch (err) {
     if (err.message.includes('BOUNTY_NOT_FOUND')) {
@@ -224,6 +248,7 @@ exports.patchBountyByName = async (req, res) => {
     delete updateData.id;
 
     const updatedBounty = await bountyService.updateBounty(bounty.id, updateData);
+    bountyCache.clear(); // Invalidate cache on mutation
     res.status(200).json(updatedBounty);
   } catch (err) {
     if (err.message.includes('BOUNTY_NOT_FOUND')) {
@@ -248,8 +273,12 @@ exports.patchBountyByName = async (req, res) => {
 exports.getAllBountiesAdmin = async (req, res) => {
   try {
     // For admin view, we'll get all bounties without the is_active filter
-    // This would require a new repository method, but for now we'll use the service
+    const cacheKey = 'admin_all';
+    const cached = bountyCache.get(cacheKey);
+    if (cached) return res.json(cached);
+
     const bounties = await bountyService.getAllBounties({});
+    bountyCache.set(cacheKey, bounties);
     res.json(bounties);
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch bounties', details: err.message });
@@ -276,6 +305,15 @@ exports.searchAndFilterBounties = async (req, res) => {
       return res.status(400).json({ error: 'User authentication required for registered status' });
     }
 
+    // Inject tenant
+    if (req.user && req.user.role !== 'admin') {
+      filters.college_id = req.user.college_id;
+    }
+
+    const cacheKey = 'search_' + JSON.stringify({ filters, sortBy, sortOrder, pageNumber, pageSize, userId: req.user?.id });
+    const cached = bountyCache.get(cacheKey);
+    if (cached) return res.json(cached);
+
     // Use service method for search and filter
     const results = await bountyService.searchAndFilterBounties(filters, req.user?.id);
 
@@ -297,7 +335,7 @@ exports.searchAndFilterBounties = async (req, res) => {
       }));
     }
 
-    res.json({
+    const responseData = {
       filters,
       results: resultsWithRegistration,
       sortBy,
@@ -306,7 +344,10 @@ exports.searchAndFilterBounties = async (req, res) => {
       pageSize: limit,
       totalResults,
       totalPages
-    });
+    };
+    
+    bountyCache.set(cacheKey, responseData);
+    res.json(responseData);
   } catch (err) {
     if (err.message.includes('USER_ID_REQUIRED_FOR_COMPLETED')) {
       res.status(400).json({ error: 'User authentication required for completed status' });
@@ -327,7 +368,7 @@ exports.registerForBounty = async (req, res) => {
     // This would require a new service method for registration
     // For now, we'll keep the existing logic but move it to service layer later
     const registeredBounties = await bountyService.getRegisteredBounties(userId);
-    
+
     // Check if already registered
     if (registeredBounties.includes(parseInt(bountyId))) {
       return res.status(400).json({ error: 'Already registered for this bounty' });
@@ -349,6 +390,8 @@ exports.registerForBounty = async (req, res) => {
 
     // Get updated registered bounties
     const updatedRegisteredBounties = await bountyService.getRegisteredBounties(userId);
+
+    bountyCache.clear(); // Invalidate cache since user participations changed
 
     res.status(201).json({
       message: 'registered successfully',

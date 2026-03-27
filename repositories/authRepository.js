@@ -3,16 +3,18 @@ const pool = require('../config/db');
 class AuthRepository {
   async findUserByName(name) {
     try {
+      // Search by username (e.g. "student1") OR by display name (e.g. "Student One")
       const query = `
         SELECT u.*, r.name as role_name 
         FROM "user" u 
         JOIN role r ON u.role_id = r.id 
-        WHERE u.name = $1 
+        WHERE u.username = $1 OR u.name = $1
         LIMIT 1
       `;
       const { rows } = await pool.query(query, [name]);
       return rows.length > 0 ? rows[0] : null;
     } catch (error) {
+      console.error('Full DB Error:', error);
       throw new Error(`Database error in findUserByName: ${error.message}`);
     }
   }
@@ -29,9 +31,10 @@ class AuthRepository {
       const { rows } = await pool.query(query, [id]);
       return rows.length > 0 ? rows[0] : null;
     } catch (error) {
+      console.error('Full DB Error:', error);
       throw new Error(`Database error in findUserById: ${error.message}`);
     }
   }
 }
 
-module.exports = new AuthRepository(); 
+module.exports = new AuthRepository();

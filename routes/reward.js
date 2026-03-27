@@ -1,6 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const { authenticateToken, authorizeRoles, authorize } = require('../middleware/authMiddleware');
+const { validate } = require('../middleware/validate');
+const { rewardSchema } = require('../utils/validators');
 const rewardController = require('../controllers/rewardController');
 const { claimReward } = require('../controllers/rewardController');
 const { asyncHandler } = require('../middleware/errorHandler');
@@ -13,10 +15,10 @@ router.get('/', authenticateToken, rewardController.getAllRewards);
 router.get('/:id', authenticateToken, rewardController.getRewardById);
 
 // Create a reward (only creators)
-router.post('/', authenticateToken, authorizeRoles('creator'), getUpload('rewards_imgs').single('image'), rewardController.createReward);
+router.post('/', authenticateToken, authorizeRoles('creator'), getUpload('rewards_imgs').single('image'), validate(rewardSchema), rewardController.createReward);
 
 // Update a reward (only creators)
-router.put('/:id', authenticateToken, authorizeRoles('creator'), getUpload('rewards_imgs').single('image'), rewardController.updateReward);
+router.put('/:id', authenticateToken, authorizeRoles('creator'), getUpload('rewards_imgs').single('image'), validate(rewardSchema), rewardController.updateReward);
 
 // Delete a reward (only creators)
 router.delete('/:id', authenticateToken, authorizeRoles('creator'), rewardController.deleteReward);

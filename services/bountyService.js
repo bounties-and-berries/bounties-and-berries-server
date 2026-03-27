@@ -4,13 +4,13 @@ const TransactionUtils = require('../utils/transactionUtils');
 class BountyService {
   async getAllBounties(queryParams) {
     try {
-      const { name, venue, type, date_from, date_to, status, limit, offset, sort_by, order } = queryParams;
+      const { name, venue, type, date_from, date_to, status, limit, offset, sort_by, order, college_id } = queryParams;
 
       // Handle special status filters
       if (status === 'upcoming') {
-        return await bountyRepository.findUpcoming();
+        return await bountyRepository.findUpcoming(college_id);
       } else if (status === 'ongoing') {
-        return await bountyRepository.findOngoing();
+        return await bountyRepository.findOngoing(college_id);
       } else if (status === 'completed') {
         // This requires user context, handled in controller
         throw new Error('COMPLETED_STATUS_REQUIRES_USER');
@@ -36,7 +36,7 @@ class BountyService {
       if (sort_by) sorting.sortBy = sort_by;
       if (order) sorting.order = order;
 
-      return await bountyRepository.findAll(filters, pagination, sorting);
+      return await bountyRepository.findAll(filters, pagination, sorting, college_id);
     } catch (error) {
       throw new Error(`Service error in getAllBounties: ${error.message}`);
     }
@@ -95,8 +95,8 @@ class BountyService {
           INSERT INTO bounty (
             name, description, type, img_url, image_hash, 
             alloted_points, alloted_berries, scheduled_date, 
-            venue, capacity, is_active, created_by, modified_by, created_on
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW())
+            venue, capacity, college_id, is_active, created_by, modified_by, created_on
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, NOW())
           RETURNING *
         `, [
           bountyData.name.trim(),
@@ -109,6 +109,7 @@ class BountyService {
           bountyData.scheduled_date || null,
           bountyData.venue?.trim() || null,
           bountyData.capacity || null,
+          bountyData.college_id || null, // Ensure college_id goes to db
           bountyData.is_active !== undefined ? bountyData.is_active : true,
           bountyData.created_by || null,
           bountyData.modified_by || null

@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const upload = require('../middleware/upload');
-const { getFileHash } = require('../fileHash');
+const { getFileHash } = require('../scripts/fileHash');
 const fs = require('fs');
 
 router.post('/upload', upload.single('image'), async (req, res) => {

@@ -19,7 +19,7 @@ const login = async (req, res, next) => {
     } else if (err.message.includes('INVALID_ROLE')) {
       res.status(401).json({ 
         error: 'Authentication failed', 
-        message: 'Incorrect role for this user' 
+        message: 'Wrong user role' 
       });
     } else {
       res.status(500).json({ 
@@ -30,4 +30,42 @@ const login = async (req, res, next) => {
   }
 };
 
-module.exports = { login }; 
+/**
+ * POST /api/auth/logout
+ * Headers: Authorization: Bearer <token>
+ */
+const logout = async (req, res, next) => {
+  try {
+    // Extract token from Authorization header
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+    
+    const result = await authService.logout(token);
+    
+    res.json({
+      success: true,
+      message: result.message,
+      user: result.user
+    });
+  } catch (err) {
+    if (err.message.includes('NO_TOKEN_PROVIDED')) {
+      res.status(400).json({ 
+        error: 'Logout failed', 
+        message: 'No token provided' 
+      });
+    } else if (err.message.includes('USER_NOT_FOUND')) {
+      // Still consider logout successful even if user not found
+      res.json({
+        success: true,
+        message: 'Logout successful (user not found)'
+      });
+    } else {
+      res.status(500).json({ 
+        error: 'Logout failed', 
+        details: err.message 
+      });
+    }
+  }
+};
+
+module.exports = { login, logout }; 

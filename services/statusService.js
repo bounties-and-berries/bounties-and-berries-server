@@ -112,6 +112,7 @@ class StatusService {
         checks: {
           server: 'pass',
           database: dbStatus.status === 'connected' ? 'pass' : 'fail',
+          ledger: (await statusRepository.checkLedgerIntegrity()).status,
           memory: memoryHealth,
           uptime: 'pass'
         },

@@ -11,6 +11,16 @@ class UserRepository {
     }
   }
 
+  async findByEmail(email) {
+    try {
+      const query = 'SELECT * FROM "user" WHERE email = $1';
+      const result = await pool.query(query, [email]);
+      return result.rows[0] || null;
+    } catch (error) {
+      throw new Error(`Database error in findByEmail: ${error.message}`);
+    }
+  }
+
   async findById(id) {
     try {
       const query = 'SELECT * FROM "user" WHERE id = $1';

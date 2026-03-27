@@ -1,20 +1,36 @@
 const jwt = require('jsonwebtoken');
 const { ApiError } = require('./errorHandler');
+const tokenBlacklist = require('../utils/tokenBlacklist');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'supersecretkey';
 
+// Fail fast in production if JWT_SECRET is still the default
+if (process.env.NODE_ENV === 'production' && JWT_SECRET === 'supersecretkey') {
+  console.error('❌ FATAL: JWT_SECRET must be changed from the default value in production');
+  console.error('   Generate one with: node -e "console.log(require(\'crypto\').randomBytes(64).toString(\'hex\'))"');
+  process.exit(1);
+}
+
 // Middleware to authenticate JWT token
-function authenticateToken(req, res, next) {
+async function authenticateToken(req, res, next) {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
   if (!token) {
     return next(new ApiError('No token provided', 401));
   }
+  
+  // Check if token has been blacklisted (user logged out)
+  const isBlacklisted = await tokenBlacklist.isBlacklisted(token);
+  if (isBlacklisted) {
+    return next(new ApiError('Token has been revoked', 401));
+  }
+  
   jwt.verify(token, JWT_SECRET, (err, user) => {
     if (err) {
-      return next(new ApiError('Invalid or expired token', 403));
+      return next(new ApiError('Invalid or expired token', 401));
     }
     req.user = user;
+    req.token = token; // Store token for logout use
     next();
   });
 }
@@ -35,14 +51,14 @@ const permissions = {
     'viewAllUsers', 'createUser', 'updateUser', 'deleteUser',
     'viewAllColleges', 'createCollege', 'updateCollege', 'deleteCollege',
     'viewAllRoles', 'createRole', 'updateRole', 'deleteRole',
-    'viewAllBounties', 'createBounty', 'updateBounty', 'deleteBounty',
-    'viewAllRewards', 'createReward', 'updateReward', 'deleteReward',
+    'viewBounties', 'viewAllBounties', 'createBounty', 'updateBounty', 'editBounty', 'deleteBounty',
+    'viewRewards', 'viewAllRewards', 'createReward', 'updateReward', 'deleteReward',
     'viewAllPointRequests', 'viewAllAchievements', 'manageAchievements'
   ],
   faculty: [
     'viewOwnProfile', 'updateOwnProfile',
-    'viewAllBounties', 'createBounty', 'updateBounty',
-    'viewAllRewards', 'createReward', 'updateReward',
+    'viewBounties', 'viewAllBounties', 'createBounty', 'updateBounty', 'editBounty', 'deleteBounty',
+    'viewRewards', 'viewAllRewards', 'createReward', 'updateReward', 'deleteReward',
     'reviewPointRequests', 'approvePointRequest', 'denyPointRequest',
     'viewOwnAchievements'
   ],
@@ -50,9 +66,15 @@ const permissions = {
     'viewOwnProfile', 'updateOwnProfile',
     'viewBounties', 'participateInBounty', 'viewOwnParticipation',
     'viewRewards', 'claimReward', 'viewOwnClaims',
-    'submitPointRequest', 'viewOwnPointRequests', 'editOwnPointRequest', 
+    'submitPointRequest', 'viewOwnPointRequests', 'editOwnPointRequest',
     'uploadEvidence', 'viewEvidence', 'deleteOwnPointRequest',
     'viewOwnAchievements'
+  ],
+  creator: [
+    'viewAllColleges', 'createCollege', 'updateCollege', 'deleteCollege',
+    'viewAllRoles', 'createRole', 'updateRole', 'deleteRole',
+    'viewAllRewards', 'createReward', 'updateReward', 'deleteReward',
+    'viewAllBounties', 'createBounty', 'updateBounty', 'deleteBounty'
   ]
 };
 
@@ -71,4 +93,4 @@ module.exports = {
   authenticateToken,
   authorizeRoles,
   authorize,
-}; 
+};

@@ -1,0 +1,452 @@
+# **Point Request System - Complete Feature Documentation**
+
+## **1. System Overview**
+
+### **1.1 Purpose**
+The Point Request System allows students to submit activity completion requests for faculty approval, enabling them to earn points and berries for activities outside the traditional bounty system. This creates a flexible, inclusive approach to recognizing student achievements.
+
+### **1.2 Core Philosophy**
+- **Student-Driven**: Students initiate requests for activities they've completed
+- **Faculty Oversight**: Faculty members review and approve/deny requests
+- **Evidence-Based**: All requests require proof/evidence of completion
+- **Transparent Process**: Clear status tracking and communication
+- **Flexible Categories**: Supports various activity types with custom categories
+
+### **1.3 Key Benefits**
+- **Inclusive Recognition**: Captures activities not covered by bounties
+- **Faculty Control**: Maintains academic oversight and quality control
+- **Evidence Verification**: Ensures authenticity through proof requirements
+- **Flexible Categories**: Accommodates diverse student activities
+- **Audit Trail**: Complete history of requests and decisions
+
+---
+
+## **2. System Architecture**
+
+### **2.1 Data Flow**
+```
+Student Request → Faculty Review → Approval/Denial → Points Award → Achievement Check
+```
+
+### **2.2 Core Components**
+1. **Request Management**: Handle point request creation and updates
+2. **Faculty Review System**: Interface for faculty approval/denial
+3. **Evidence Storage**: Secure file upload and management
+4. **Notification System**: Alert users of request status changes
+5. **Points Integration**: Connect with existing bounty system
+6. **Audit System**: Track all request history and decisions
+
+### **2.3 Integration Points**
+- **User System**: Student and faculty user management
+- **Bounty System**: Points and berries integration
+- **Achievement System**: Trigger achievement calculations
+- **File Storage**: Evidence document management
+- **Notification System**: Status update communications
+
+---
+
+## **3. Database Schema Design**
+
+### **3.1 Point Request Table**
+```sql
+CREATE TABLE point_request (
+    id BIGSERIAL PRIMARY KEY,
+    student_id BIGINT NOT NULL REFERENCES "user"(id),
+    faculty_id BIGINT REFERENCES "user"(id), -- assigned faculty reviewer
+    activity_title VARCHAR(255) NOT NULL,
+    category VARCHAR(100) NOT NULL,
+    custom_category VARCHAR(100), -- for "other" category
+    description TEXT NOT NULL,
+    activity_date DATE NOT NULL,
+    proof_url TEXT, -- file path to uploaded evidence
+    proof_description TEXT NOT NULL,
+    points_requested INTEGER NOT NULL DEFAULT 0,
+    berries_requested INTEGER NOT NULL DEFAULT 0,
+    status VARCHAR(20) NOT NULL DEFAULT 'pending', -- pending, approved, denied
+    faculty_comment TEXT, -- reason for approval/denial
+    created_on TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    modified_on TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_by VARCHAR(255),
+    modified_by VARCHAR(255)
+);
+```
+
+### **3.2 Request History Table**
+```sql
+CREATE TABLE point_request_history (
+    id BIGSERIAL PRIMARY KEY,
+    request_id BIGINT NOT NULL REFERENCES point_request(id),
+    action VARCHAR(50) NOT NULL, -- created, updated, approved, denied
+    action_by BIGINT NOT NULL REFERENCES "user"(id),
+    comment TEXT,
+    created_on TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+### **3.3 Category Configuration Table**
+```sql
+CREATE TABLE point_request_categories (
+    id BIGSERIAL PRIMARY KEY,
+    name VARCHAR(100) NOT NULL UNIQUE,
+    description TEXT,
+    default_points INTEGER DEFAULT 0,
+    default_berries INTEGER DEFAULT 0,
+    is_active BOOLEAN DEFAULT true,
+    created_on TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+---
+
+## **4. Request Categories**
+
+### **4.1 Predefined Categories**
+- **Coding**: Programming competitions, hackathons, coding challenges
+- **Sports**: Athletic competitions, tournaments, sports achievements
+- **Academic**: Research papers, academic competitions, presentations
+- **Arts**: Creative competitions, exhibitions, artistic achievements
+- **Leadership**: Student government, club leadership, event organization
+- **Community Service**: Volunteer work, community projects
+- **Innovation**: Invention competitions, startup events, innovation challenges
+- **Other**: Custom category with text input
+
+### **4.2 Category Configuration**
+Each category can have:
+- **Default Points**: Suggested points for typical activities
+- **Default Berries**: Suggested berries for typical activities
+- **Description**: Explanation of what qualifies
+- **Active Status**: Enable/disable categories
+
+---
+
+## **5. Request Lifecycle**
+
+### **5.1 Request Creation**
+1. **Student Input**: Fill out request form with activity details
+2. **Evidence Upload**: Upload proof document/image
+3. **Category Selection**: Choose appropriate category
+4. **Points Request**: Specify desired points and berries
+5. **Submission**: Submit for faculty review
+
+### **5.2 Faculty Review Process**
+1. **Assignment**: System assigns faculty reviewer (or manual assignment)
+2. **Review**: Faculty examines request and evidence
+3. **Decision**: Approve, deny, or request more information
+4. **Comment**: Provide reasoning for decision
+5. **Notification**: Alert student of decision
+
+### **5.3 Post-Approval Process**
+1. **Points Award**: Automatically award approved points/berries
+2. **Achievement Check**: Trigger achievement calculations
+3. **Notification**: Confirm points awarded to student
+4. **History Update**: Record the approval in audit trail
+
+---
+
+## **6. API Design**
+
+### **6.1 Student Endpoints**
+```javascript
+// Create new point request
+POST /api/point-requests
+{
+  "activity_title": "Hackathon Winner",
+  "category": "coding",
+  "custom_category": null,
+  "description": "Won first place in college hackathon",
+  "activity_date": "2024-01-15",
+  "proof_description": "Winning certificate from hackathon organizers",
+  "points_requested": 500,
+  "berries_requested": 50
+}
+
+// Get student's requests
+GET /api/point-requests/my-requests
+
+// Get specific request details
+GET /api/point-requests/:id
+
+// Update request (if pending)
+PUT /api/point-requests/:id
+
+// Cancel request (if pending)
+DELETE /api/point-requests/:id
+```
+
+### **6.2 Faculty Endpoints**
+```javascript
+// Get pending requests for faculty
+GET /api/point-requests/pending
+
+// Get all requests (faculty view)
+GET /api/point-requests
+
+// Approve request
+POST /api/point-requests/:id/approve
+{
+  "faculty_comment": "Excellent achievement!",
+  "points_awarded": 500,
+  "berries_awarded": 50
+}
+
+// Deny request
+POST /api/point-requests/:id/deny
+{
+  "faculty_comment": "Insufficient evidence provided",
+  "reason": "missing_proof"
+}
+```
+
+### **6.3 Admin Endpoints**
+```javascript
+// Manage categories
+GET /api/point-requests/categories
+POST /api/point-requests/categories
+PUT /api/point-requests/categories/:id
+
+// Get system statistics
+GET /api/point-requests/stats
+
+// Assign faculty reviewers
+POST /api/point-requests/:id/assign-faculty
+{
+  "faculty_id": 123
+}
+```
+
+---
+
+## **7. File Upload System**
+
+### **7.1 Evidence Upload**
+- **Supported Formats**: PDF, JPG, PNG, DOC, DOCX
+- **File Size Limit**: 10MB per file
+- **Storage Location**: `/uploads/point_requests/`
+- **File Naming**: `{request_id}_{timestamp}_{original_name}`
+- **Security**: Virus scanning and file validation
+
+### **7.2 File Management**
+```javascript
+// Upload evidence
+POST /api/point-requests/:id/upload-evidence
+Content-Type: multipart/form-data
+
+// Download evidence (faculty only)
+GET /api/point-requests/:id/evidence
+
+// Delete evidence (student, if pending)
+DELETE /api/point-requests/:id/evidence
+```
+
+---
+
+## **8. Notification System**
+
+### **8.1 Student Notifications**
+- **Request Submitted**: Confirmation of submission
+- **Faculty Assigned**: Notification of assigned reviewer
+- **Request Approved**: Points awarded notification
+- **Request Denied**: Denial with reasoning
+- **Request Updated**: Status change notifications
+
+### **8.2 Faculty Notifications**
+- **New Request Assigned**: New request to review
+- **Request Updated**: Student updated their request
+- **Reminder Notifications**: Pending requests older than 3 days
+
+### **8.3 Notification Channels**
+- **In-App Notifications**: Real-time notifications
+- **Email Notifications**: Status change emails
+- **SMS Notifications**: Critical status updates (optional)
+
+---
+
+## **9. Status Management**
+
+### **9.1 Request Statuses**
+- **Draft**: Student is still editing
+- **Pending**: Submitted and waiting for faculty review
+- **Under Review**: Faculty is currently reviewing
+- **Approved**: Request approved, points awarded
+- **Denied**: Request denied with reasoning
+- **Cancelled**: Student cancelled the request
+
+### **9.2 Status Transitions**
+```
+Draft → Pending → Under Review → Approved/Denied
+Draft → Cancelled
+Pending → Cancelled (by student)
+Pending → Under Review → Approved/Denied
+```
+
+---
+
+## **10. Points Integration**
+
+### **10.1 Points Award Process**
+```javascript
+// When request is approved
+async function awardPoints(requestId) {
+  const request = await getRequest(requestId);
+  const student = await getUser(request.student_id);
+  
+  // Award points to student's bounty participation
+  await createBountyParticipation({
+    user_id: request.student_id,
+    bounty_id: null, // Special bounty for point requests
+    points_earned: request.points_awarded,
+    berries_earned: request.berries_awarded,
+    status: 'completed',
+    created_by: request.faculty_id,
+    modified_by: request.faculty_id
+  });
+  
+  // Trigger achievement calculations
+  await checkAchievements(request.student_id);
+}
+```
+
+### **10.2 Special Bounty Type**
+- **Virtual Bounty**: Special bounty type for point requests
+- **No Physical Bounty**: Points awarded directly to user
+- **Achievement Integration**: Triggers achievement calculations
+- **History Tracking**: Maintains audit trail
+
+---
+
+## **11. Faculty Assignment System**
+
+### **11.1 Assignment Methods**
+- **Automatic Assignment**: Based on category or workload
+- **Manual Assignment**: Admin assigns specific faculty
+- **Self-Assignment**: Faculty can pick up requests
+- **Load Balancing**: Distribute requests evenly
+
+### **11.2 Assignment Rules**
+```javascript
+const assignmentRules = {
+  coding: ['faculty_id_1', 'faculty_id_2'],
+  sports: ['faculty_id_3', 'faculty_id_4'],
+  academic: ['faculty_id_5', 'faculty_id_6'],
+  default: ['faculty_id_7', 'faculty_id_8']
+};
+```
+
+---
+
+## **12. Reporting and Analytics**
+
+### **12.1 Student Reports**
+- **Request History**: All submitted requests
+- **Success Rate**: Percentage of approved requests
+- **Points Earned**: Total points from approved requests
+- **Category Breakdown**: Points by activity category
+
+### **12.2 Faculty Reports**
+- **Review Statistics**: Number of requests reviewed
+- **Approval Rate**: Percentage of approved requests
+- **Response Time**: Average time to review requests
+- **Category Expertise**: Reviews by category
+
+### **12.3 Admin Reports**
+- **System Statistics**: Overall request volume
+- **Category Popularity**: Most requested categories
+- **Faculty Workload**: Distribution of review assignments
+- **Trend Analysis**: Request patterns over time
+
+---
+
+## **13. Security and Validation**
+
+### **13.1 Input Validation**
+- **Activity Title**: Required, max 255 characters
+- **Category**: Must be from predefined list or custom
+- **Description**: Required, max 1000 characters
+- **Activity Date**: Must be in the past
+- **Points Requested**: Must be reasonable (0-1000)
+- **Berries Requested**: Must be reasonable (0-100)
+
+### **13.2 Authorization Rules**
+- **Students**: Can only manage their own requests
+- **Faculty**: Can review assigned requests
+- **Admins**: Can manage all requests and categories
+- **File Access**: Faculty can view evidence, students can manage their own
+
+### **13.3 Data Protection**
+- **Evidence Files**: Secure storage with access controls
+- **Personal Data**: PII protection for sensitive information
+- **Audit Trail**: Complete history of all actions
+- **Backup**: Regular backup of request data
+
+---
+
+## **14. Implementation Plan**
+
+### **14.1 Phase 1: Core System**
+1. **Database Setup**: Create point_request tables
+2. **Basic API**: CRUD operations for requests
+3. **File Upload**: Evidence upload functionality
+4. **Basic UI**: Student request form
+
+### **14.2 Phase 2: Faculty Interface**
+1. **Faculty Dashboard**: Review interface
+2. **Approval System**: Approve/deny functionality
+3. **Assignment System**: Faculty assignment logic
+4. **Notification System**: Status update notifications
+
+### **14.3 Phase 3: Integration**
+1. **Points Integration**: Connect with bounty system
+2. **Achievement Integration**: Trigger achievement calculations
+3. **Reporting**: Analytics and reporting features
+4. **Advanced Features**: Category management, advanced assignments
+
+### **14.4 Phase 4: Optimization**
+1. **Performance**: Optimize queries and calculations
+2. **Security**: Enhanced security measures
+3. **User Experience**: UI/UX improvements
+4. **Testing**: Comprehensive testing and bug fixes
+
+---
+
+## **15. Success Metrics**
+
+### **15.1 Engagement Metrics**
+- **Request Volume**: Number of requests per month
+- **Approval Rate**: Percentage of approved requests
+- **Student Participation**: Percentage of students using system
+- **Faculty Engagement**: Average response time
+
+### **15.2 Quality Metrics**
+- **Evidence Quality**: Percentage of requests with proper evidence
+- **Category Distribution**: Balance across activity categories
+- **Dispute Rate**: Number of appeals or complaints
+- **Satisfaction Score**: User satisfaction ratings
+
+### **15.3 Technical Metrics**
+- **System Uptime**: 99.9% availability
+- **Response Time**: < 2 seconds for all operations
+- **File Upload Success**: 99% successful uploads
+- **Error Rate**: < 1% error rate
+
+---
+
+## **16. Future Enhancements**
+
+### **16.1 Advanced Features**
+- **Bulk Approval**: Faculty can approve multiple requests
+- **Template System**: Predefined request templates
+- **Auto-Approval**: Automatic approval for certain categories
+- **Peer Review**: Student peer review system
+
+### **16.2 Integration Features**
+- **Calendar Integration**: Activity date validation
+- **Social Media**: Share achievements on social platforms
+- **Mobile App**: Native mobile application
+- **API Integration**: Third-party system integration
+
+### **16.3 Analytics Features**
+- **Predictive Analytics**: Predict approval likelihood
+- **Trend Analysis**: Identify popular activity types
+- **Performance Metrics**: Faculty performance tracking
+- **Student Insights**: Student behavior analysis
+

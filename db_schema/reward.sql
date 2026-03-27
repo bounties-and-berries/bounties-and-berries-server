@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS reward (
     expiry_date TIMESTAMP,
     img_url TEXT,
     image_hash TEXT,
+    college_id BIGINT REFERENCES college(id),
     created_on TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     modified_on TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     created_by VARCHAR(255),

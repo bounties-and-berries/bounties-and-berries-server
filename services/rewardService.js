@@ -1,9 +1,9 @@
 const rewardRepository = require('../repositories/rewardRepository');
 
 class RewardService {
-  async getAllRewards() {
+  async getAllRewards(collegeId = null) {
     try {
-      return await rewardRepository.findAll();
+      return await rewardRepository.findAll(collegeId);
     } catch (error) {
       throw new Error(`Service error in getAllRewards: ${error.message}`);
     }
@@ -51,6 +51,7 @@ class RewardService {
         expiry_date: rewardData.expiry_date || null,
         img_url: rewardData.img_url || null,
         image_hash: rewardData.image_hash || null,
+        college_id: rewardData.college_id || null, // Map college_id
         created_by: rewardData.created_by,
         modified_by: rewardData.modified_by || rewardData.created_by
       };

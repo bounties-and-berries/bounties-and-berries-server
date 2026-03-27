@@ -33,6 +33,31 @@ class StatusRepository {
       throw new Error(`Database error in getDatabaseStats: ${error.message}`);
     }
   }
+
+  async checkLedgerIntegrity() {
+    try {
+      // Check for any imbalanced transactions in the last 10 minutes
+      const result = await pool.query(`
+        SELECT txn_id
+        FROM ledger_entry
+        WHERE created_on > NOW() - INTERVAL '10 minutes'
+        GROUP BY txn_id
+        HAVING SUM(direction * amount) != 0;
+      `);
+      
+      return {
+        status: result.rows.length === 0 ? 'pass' : 'fail',
+        imbalanced_count: result.rows.length,
+        timestamp: new Date().toISOString()
+      };
+    } catch (error) {
+      return {
+        status: 'error',
+        error: error.message,
+        timestamp: new Date().toISOString()
+      };
+    }
+  }
 }
 
 module.exports = new StatusRepository(); 

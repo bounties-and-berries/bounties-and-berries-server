@@ -5,6 +5,34 @@ const pool = require('../config/db');
  * Provides wrapper functions for database transactions
  */
 
+// Whitelist of allowed table and column names to prevent SQL injection
+const ALLOWED_TABLES = new Set([
+  'user', 'bounty', 'reward', 'college', 'role',
+  'user_bounty_participation', 'user_reward_claim',
+  'point_request', 'berry_rules', 'berry_purchases',
+  'notifications', 'support_query', 'achievements'
+]);
+
+const ALLOWED_COLUMNS = new Set([
+  'id', 'user_id', 'bounty_id', 'reward_id', 'college_id', 'role_id',
+  'student_id', 'faculty_id', 'admin_id', 'name', 'email', 'mobile',
+  'mobilenumber', 'username', 'redeemable_code', 'payment_ref', 'status'
+]);
+
+function validateIdentifier(value, type) {
+  const allowed = type === 'table' ? ALLOWED_TABLES : ALLOWED_COLUMNS;
+  if (!allowed.has(value)) {
+    throw new Error(`Invalid ${type} name: ${value}`);
+  }
+  return value;
+}
+
+// Escape identifier for PostgreSQL (double-quote wrapping)
+function escapeIdentifier(name) {
+  // Remove any existing quotes and wrap in double quotes
+  return `"${name.replace(/"/g, '""')}"`;
+}
+
 class TransactionUtils {
   /**
    * Execute a function within a database transaction
@@ -44,14 +72,17 @@ class TransactionUtils {
 
   /**
    * Lock a row for update to prevent race conditions
+   * Uses whitelisted table/column names to prevent SQL injection
    * @param {Object} client - Database client
-   * @param {string} table - Table name
-   * @param {string} column - Column to match
+   * @param {string} table - Table name (must be whitelisted)
+   * @param {string} column - Column to match (must be whitelisted)
    * @param {any} value - Value to match
    * @returns {Promise} - Locked row
    */
   static async lockRowForUpdate(client, table, column, value) {
-    const query = `SELECT * FROM ${table} WHERE ${column} = $1 FOR UPDATE`;
+    validateIdentifier(table, 'table');
+    validateIdentifier(column, 'column');
+    const query = `SELECT * FROM ${escapeIdentifier(table)} WHERE ${escapeIdentifier(column)} = $1 FOR UPDATE`;
     const result = await client.query(query, [value]);
     return result.rows[0];
   }
@@ -59,8 +90,8 @@ class TransactionUtils {
   /**
    * Check if a row exists and lock it for update
    * @param {Object} client - Database client
-   * @param {string} table - Table name
-   * @param {string} column - Column to match
+   * @param {string} table - Table name (must be whitelisted)
+   * @param {string} column - Column to match (must be whitelisted)
    * @param {any} value - Value to match
    * @returns {Promise} - Locked row or null
    */
@@ -74,24 +105,31 @@ class TransactionUtils {
 
   /**
    * Update a row with optimistic locking using version
+   * Uses whitelisted table/column names to prevent SQL injection
    * @param {Object} client - Database client
-   * @param {string} table - Table name
+   * @param {string} table - Table name (must be whitelisted)
    * @param {Object} data - Data to update
-   * @param {string} idColumn - ID column name
+   * @param {string} idColumn - ID column name (must be whitelisted)
    * @param {any} idValue - ID value
    * @param {number} expectedVersion - Expected version number
    * @returns {Promise} - Updated row
    */
   static async updateWithVersion(client, table, data, idColumn, idValue, expectedVersion) {
-    const setClause = Object.keys(data)
-      .map((key, index) => `${key} = $${index + 1}`)
+    validateIdentifier(table, 'table');
+    validateIdentifier(idColumn, 'column');
+
+    // Validate all data keys are safe column names
+    const dataKeys = Object.keys(data);
+    // Build SET clause using escaped identifiers
+    const setClause = dataKeys
+      .map((key, index) => `${escapeIdentifier(key)} = $${index + 1}`)
       .join(', ');
     
     const query = `
-      UPDATE ${table} 
-      SET ${setClause}, version = version + 1 
-      WHERE ${idColumn} = $${Object.keys(data).length + 1} 
-      AND version = $${Object.keys(data).length + 2}
+      UPDATE ${escapeIdentifier(table)} 
+      SET ${setClause}, "version" = "version" + 1 
+      WHERE ${escapeIdentifier(idColumn)} = $${dataKeys.length + 1} 
+      AND "version" = $${dataKeys.length + 2}
       RETURNING *
     `;
     
@@ -135,4 +173,4 @@ class TransactionUtils {
   }
 }
 
-module.exports = TransactionUtils; 
+module.exports = TransactionUtils;

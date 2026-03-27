@@ -26,7 +26,7 @@ class BountyParticipationRepository {
       const query = `
         SELECT ubp.*, b.name as bounty_name, b.type as bounty_type, b.scheduled_date
         FROM user_bounty_participation ubp
-        JOIN bounty b ON ubp.bounty_id = b.id
+        LEFT JOIN bounty b ON ubp.bounty_id = b.id
         WHERE ubp.user_id = $1
         ORDER BY ubp.created_on DESC
       `;
@@ -68,8 +68,8 @@ class BountyParticipationRepository {
       const query = `
         SELECT ubp.*, u.name as user_name, b.name as bounty_name
         FROM user_bounty_participation ubp
-        JOIN "user" u ON ubp.user_id = u.id
-        JOIN bounty b ON ubp.bounty_id = b.id
+        LEFT JOIN "user" u ON ubp.user_id = u.id
+        LEFT JOIN bounty b ON ubp.bounty_id = b.id
         WHERE ubp.status = $1
         ORDER BY ubp.created_on DESC
       `;
@@ -85,7 +85,7 @@ class BountyParticipationRepository {
       const query = `
         SELECT ubp.*, b.name as bounty_name, b.type as bounty_type, b.scheduled_date
         FROM user_bounty_participation ubp
-        JOIN bounty b ON ubp.bounty_id = b.id
+        LEFT JOIN bounty b ON ubp.bounty_id = b.id
         WHERE ubp.user_id = $1 AND ubp.status = $2
         ORDER BY ubp.created_on DESC
       `;
@@ -101,7 +101,7 @@ class BountyParticipationRepository {
       const query = `
         SELECT ubp.*, b.name as bounty_name, b.type as bounty_type, b.scheduled_date
         FROM user_bounty_participation ubp
-        JOIN bounty b ON ubp.bounty_id = b.id
+        LEFT JOIN bounty b ON ubp.bounty_id = b.id
         WHERE ubp.user_id = $1 AND ubp.status = 'completed'
         ORDER BY ubp.created_on DESC
       `;
@@ -117,7 +117,7 @@ class BountyParticipationRepository {
       const query = `
         SELECT ubp.*, b.name as bounty_name, b.type as bounty_type, b.scheduled_date
         FROM user_bounty_participation ubp
-        JOIN bounty b ON ubp.bounty_id = b.id
+        LEFT JOIN bounty b ON ubp.bounty_id = b.id
         WHERE ubp.user_id = $1 AND ubp.status = 'registered'
         ORDER BY ubp.created_on DESC
       `;
@@ -234,7 +234,7 @@ class BountyParticipationRepository {
                b.type as bounty_type, b.scheduled_date, ubp.status, ubp.points_earned, 
                ubp.berries_earned, ubp.created_on
         FROM user_bounty_participation ubp
-        JOIN bounty b ON ubp.bounty_id = b.id
+        LEFT JOIN bounty b ON ubp.bounty_id = b.id
         WHERE ubp.user_id = $1
         ORDER BY ubp.created_on DESC
       `;
@@ -308,8 +308,8 @@ class BountyParticipationRepository {
       let query = `
         SELECT ubp.*, u.name as user_name, b.name as bounty_name
         FROM user_bounty_participation ubp
-        JOIN "user" u ON ubp.user_id = u.id
-        JOIN bounty b ON ubp.bounty_id = b.id
+        LEFT JOIN "user" u ON ubp.user_id = u.id
+        LEFT JOIN bounty b ON ubp.bounty_id = b.id
         WHERE 1=1
       `;
       const params = [];

@@ -1,14 +1,20 @@
 const { Pool } = require('pg');
 require('dotenv').config();
 
+// Fail fast in production if critical env vars are missing
+if (process.env.NODE_ENV === 'production' && !process.env.DB_PASSWORD) {
+  console.error('❌ FATAL: DB_PASSWORD environment variable is required in production');
+  process.exit(1);
+}
+
 const pool = new Pool({
   user: process.env.DB_USER || 'postgres',
-  host: process.env.DB_HOST || 'mydatabase.calkki2y43ti.us-east-1.rds.amazonaws.com',
+  host: process.env.DB_HOST || '127.0.0.1',
   database: process.env.DB_NAME || 'postgres',
-  password: process.env.DB_PASSWORD || 'Goal1bnaws',
-  port: process.env.DB_PORT || 5432,
+  password: process.env.DB_PASSWORD,
+  port: parseInt(process.env.DB_PORT, 10) || 5432,
   // Connection pool settings
-  max: 20,
+  max: parseInt(process.env.DB_POOL_MAX, 10) || 10,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 2000,
 });

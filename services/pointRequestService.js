@@ -126,6 +126,7 @@ class PointRequestService {
       const requestToCreate = {
         ...requestData,
         student_id: studentId,
+        college_id: requestData.college_id || null, // Will be bound to the schema tenant
         faculty_id: requestData.selected_faculty_id || null, // Use selected faculty
         status: 'draft',
         created_by: studentId.toString(),
@@ -327,7 +328,12 @@ class PointRequestService {
   async approveRequest(id, facultyId, approvalData) {
     try {
       return await TransactionUtils.withTransaction(async (client) => {
-        const request = await pointRequestRepository.findById(id);
+        // Lock the row with FOR UPDATE to prevent concurrent approval/denial
+        const lockResult = await client.query(
+          'SELECT * FROM point_request WHERE id = $1 FOR UPDATE',
+          [id]
+        );
+        const request = lockResult.rows[0];
         
         if (!request) {
           throw new Error('REQUEST_NOT_FOUND');
@@ -353,36 +359,48 @@ class PointRequestService {
           throw new Error('INVALID_BERRIES_AWARDED');
         }
         
-        // Update request status
-        const updatedRequest = await pointRequestRepository.update(id, {
-          status: 'approved',
-          points_awarded: pointsAwarded,
-          berries_awarded: berriesAwarded,
-          faculty_comment: approvalData.faculty_comment || null,
-          approval_date: new Date(),
-          modified_by: facultyId.toString()
-        });
+        // Update request status (use client, not pool)
+        await client.query(`
+          UPDATE point_request 
+          SET status = 'approved', points_awarded = $1, berries_awarded = $2,
+              faculty_comment = $3, approval_date = $4, modified_by = $5, modified_on = CURRENT_TIMESTAMP
+          WHERE id = $6
+        `, [pointsAwarded, berriesAwarded, approvalData.faculty_comment || null, new Date(), facultyId.toString(), id]);
         
-        // Award points through bounty participation system
+        // Award points through bounty participation system (use client)
         if (pointsAwarded > 0 || berriesAwarded > 0) {
-          const participation = await bountyParticipationService.createParticipation({
-            user_id: request.student_id,
-            bounty_id: null, // Special case for point requests
-            points_earned: pointsAwarded,
-            berries_earned: berriesAwarded,
-            status: 'completed',
-            created_by: facultyId.toString(),
-            modified_by: facultyId.toString()
-          });
+          const partResult = await client.query(`
+            INSERT INTO user_bounty_participation 
+              (user_id, bounty_id, points_earned, berries_earned, status, created_by, modified_by)
+            VALUES ($1, NULL, $2, $3, 'completed', $4, $4)
+            RETURNING *
+          `, [request.student_id, pointsAwarded, berriesAwarded, facultyId.toString()]);
           
           // Link back to point request
-          await pointRequestRepository.update(id, {
-            bounty_participation_id: participation.id,
-            modified_by: 'system'
-          });
+          await client.query(`
+            UPDATE point_request SET bounty_participation_id = $1, modified_by = 'system' WHERE id = $2
+          `, [partResult.rows[0].id, id]);
+
+          // Double-Entry Ledger Registration (Credit)
+          const ledgerService = require('./ledgerService');
+          const { v4: uuidv4 } = require('uuid');
+          
+          if (berriesAwarded > 0) {
+            await ledgerService.credit({
+              idempotencyKey: uuidv4(),
+              userId: request.student_id,
+              amount: berriesAwarded,
+              referenceType: 'POINT_REQUEST',
+              referenceId: id,
+              collegeId: request.college_id || null,
+              actorId: facultyId
+            });
+          }
         }
         
-        return await pointRequestRepository.findById(id);
+        // Return the updated request
+        const finalResult = await client.query('SELECT * FROM point_request WHERE id = $1', [id]);
+        return finalResult.rows[0];
       });
     } catch (error) {
       throw new Error(`Service error in approveRequest: ${error.message}`);
@@ -391,28 +409,38 @@ class PointRequestService {
 
   async denyRequest(id, facultyId, denialData) {
     try {
-      const request = await pointRequestRepository.findById(id);
-      
-      if (!request) {
-        throw new Error('REQUEST_NOT_FOUND');
-      }
-      
-      if (request.faculty_id !== facultyId) {
-        throw new Error('UNAUTHORIZED_FACULTY_ACCESS');
-      }
-      
-      if (request.status !== 'pending') {
-        throw new Error('ONLY_PENDING_REQUESTS_CAN_BE_DENIED');
-      }
-      
-      if (!denialData.faculty_comment || denialData.faculty_comment.trim().length === 0) {
-        throw new Error('DENIAL_REASON_REQUIRED');
-      }
-      
-      return await pointRequestRepository.update(id, {
-        status: 'denied',
-        faculty_comment: denialData.faculty_comment,
-        modified_by: facultyId.toString()
+      return await TransactionUtils.withTransaction(async (client) => {
+        // Lock the row with FOR UPDATE to prevent concurrent approval/denial
+        const lockResult = await client.query(
+          'SELECT * FROM point_request WHERE id = $1 FOR UPDATE',
+          [id]
+        );
+        const request = lockResult.rows[0];
+        
+        if (!request) {
+          throw new Error('REQUEST_NOT_FOUND');
+        }
+        
+        if (request.faculty_id !== facultyId) {
+          throw new Error('UNAUTHORIZED_FACULTY_ACCESS');
+        }
+        
+        if (request.status !== 'pending') {
+          throw new Error('ONLY_PENDING_REQUESTS_CAN_BE_DENIED');
+        }
+        
+        if (!denialData.faculty_comment || denialData.faculty_comment.trim().length === 0) {
+          throw new Error('DENIAL_REASON_REQUIRED');
+        }
+        
+        const updateResult = await client.query(`
+          UPDATE point_request 
+          SET status = 'denied', faculty_comment = $1, modified_by = $2, modified_on = CURRENT_TIMESTAMP
+          WHERE id = $3
+          RETURNING *
+        `, [denialData.faculty_comment, facultyId.toString(), id]);
+        
+        return updateResult.rows[0];
       });
     } catch (error) {
       throw new Error(`Service error in denyRequest: ${error.message}`);

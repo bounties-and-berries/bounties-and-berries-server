@@ -1,6 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const { authenticateToken, authorize } = require('../middleware/authMiddleware');
+const { validate } = require('../middleware/validate');
+const { bountySchema } = require('../utils/validators');
 const bountyController = require('../controllers/bountyController');
 const { asyncHandler } = require('../middleware/errorHandler');
 const getUpload = require('../middleware/uploadCategory');
@@ -13,9 +15,9 @@ router.post('/search', authenticateToken, authorize('viewBounties'), bountyContr
 
 // CRUD routes at root, since router is mounted at /api/bounties
 router.get('/', authenticateToken, authorize('viewBounties'), bountyController.getAllBounties);
-router.post('/', authenticateToken, authorize('createBounty'), getUpload('bounty_imgs').single('image'), bountyController.createBounty);
+router.post('/', authenticateToken, authorize('createBounty'), getUpload('bounty_imgs').single('image'), validate(bountySchema), bountyController.createBounty);
 router.get('/:id', authenticateToken, authorize('viewBounties'), bountyController.getBountyById);
-router.put('/:id', authenticateToken, authorize('editBounty'), getUpload('bounty_imgs').single('image'), bountyController.updateBounty);
+router.put('/:id', authenticateToken, authorize('editBounty'), getUpload('bounty_imgs').single('image'), validate(bountySchema), bountyController.updateBounty);
 // Soft delete a bounty (sets is_active = false)
 router.delete('/:id', authenticateToken, authorize('deleteBounty'), bountyController.deleteBounty);
 router.patch('/:name', authenticateToken, authorize('editBounty'), bountyController.patchBountyByName);

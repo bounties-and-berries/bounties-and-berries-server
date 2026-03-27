@@ -16,11 +16,15 @@ router.get('/my-requests', authenticateToken, authorize('viewOwnPointRequests'),
 // Get all requests assigned to faculty for review
 router.get('/assigned', authenticateToken, authorize('reviewPointRequests'), pointRequestController.getAssignedRequests);
 
+const { validate } = require('../middleware/validate');
+const { pointRequestSchema, pointRequestUpdateSchema } = require('../utils/validators');
+
 // Create new point request with evidence file (multipart form data)
 router.post('/with-evidence', 
   authenticateToken, 
   authorize('submitPointRequest'), 
   getUpload('point_request_evidence').single('evidence'), 
+  validate(pointRequestSchema),
   pointRequestController.createRequestWithEvidence
 );
 
@@ -56,11 +60,12 @@ router.put('/:id',
   authenticateToken, 
   authorize('editOwnPointRequest'), 
   getUpload('point_request_evidence').single('evidence'),
+  validate(pointRequestUpdateSchema),
   pointRequestController.updateRequest
 );
 
 // Partial update request (only if draft or pending)
-router.patch('/:id', authenticateToken, authorize('editOwnPointRequest'), pointRequestController.patchRequest);
+router.patch('/:id', authenticateToken, authorize('editOwnPointRequest'), validate(pointRequestUpdateSchema), pointRequestController.patchRequest);
 
 // Student DELETE endpoint for removing their own point requests
 router.delete('/:id', authenticateToken, authorize('deleteOwnPointRequest'), pointRequestController.deleteOwnRequest);

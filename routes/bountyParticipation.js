@@ -30,10 +30,13 @@ router.get('/earnings/:userId', authenticateToken, asyncHandler(controller.getTo
 // 4. Get net berries by user (any authenticated user)
 router.get('/net-berries/:userId', authenticateToken, asyncHandler(controller.getNetBerriesByUser));
 
+const { validate } = require('../middleware/validate');
+const { participationSchema, participationUpdateSchema } = require('../utils/validators');
+
 // CRUD routes
-router.post('/', authenticateToken, authorizeCreator, asyncHandler(controller.createParticipation));
+router.post('/', authenticateToken, authorizeCreator, validate(participationSchema), asyncHandler(controller.createParticipation));
 router.get('/', authenticateToken, authorizeView, asyncHandler(controller.listParticipations));
-router.put('/:id', authenticateToken, authorizeCreator, asyncHandler(controller.updateParticipation));
+router.put('/:id', authenticateToken, authorizeCreator, validate(participationUpdateSchema), asyncHandler(controller.updateParticipation));
 router.delete('/:id', authenticateToken, authorizeCreator, asyncHandler(controller.deleteParticipation));
 
 module.exports = router; 

@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS point_request (
     -- User relationships
     student_id BIGINT NOT NULL REFERENCES "user"(id),
     faculty_id BIGINT REFERENCES "user"(id),
+    college_id BIGINT REFERENCES college(id),
     
     -- Request details
     activity_title VARCHAR(255) NOT NULL,

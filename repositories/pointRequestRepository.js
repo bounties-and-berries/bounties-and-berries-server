@@ -137,8 +137,8 @@ class PointRequestRepository {
         INSERT INTO point_request (
           student_id, activity_title, category, description,
           activity_date, proof_description, points_requested, berries_requested,
-          status, created_by, modified_by
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+          status, college_id, created_by, modified_by
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
         RETURNING id, student_id, faculty_id, activity_title, category, description,
                   activity_date, proof_description, points_requested, berries_requested,
                   status, faculty_comment
@@ -154,6 +154,7 @@ class PointRequestRepository {
         requestData.points_requested,
         requestData.berries_requested,
         requestData.status || 'draft',
+        requestData.college_id || null, // Insert tenant relationship explicitly
         requestData.created_by,
         requestData.modified_by
       ];
@@ -167,8 +168,6 @@ class PointRequestRepository {
 
   async update(id, updateData) {
     try {
-      console.log('Repository update - Input:', { id, updateData });
-      
       const setClause = Object.keys(updateData)
         .map((key, index) => `${key} = $${index + 2}`)
         .join(', ');
@@ -181,15 +180,9 @@ class PointRequestRepository {
       `;
       
       const values = [id, ...Object.values(updateData)];
-      console.log('Repository update - Query:', query);
-      console.log('Repository update - Values:', values);
-      
       const result = await pool.query(query, values);
-      console.log('Repository update - Database result:', result.rows[0]);
-      
       return result.rows[0];
     } catch (error) {
-      console.error('Repository update - Error:', error.message);
       throw new Error(`Repository error in update: ${error.message}`);
     }
   }

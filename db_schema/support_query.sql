@@ -1,0 +1,8 @@
+CREATE TABLE support_query (
+  id SERIAL PRIMARY KEY,
+  user_id UUID REFERENCES "user"(id) ON DELETE CASCADE,
+  subject VARCHAR(255) NOT NULL,
+  message TEXT NOT NULL,
+  status VARCHAR(50) DEFAULT 'open',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);

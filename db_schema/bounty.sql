@@ -13,7 +13,9 @@ CREATE TABLE IF NOT EXISTS bounty (
     scheduled_date TIMESTAMP,
     venue VARCHAR(255),
     capacity BIGINT,
+    college_id BIGINT REFERENCES college(id),
     is_active BOOLEAN DEFAULT TRUE,
+    version INTEGER DEFAULT 0,  -- optimistic locking for concurrent updates
     created_on TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     modified_on TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     created_by VARCHAR(255),

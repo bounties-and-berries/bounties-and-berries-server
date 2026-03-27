@@ -4,7 +4,7 @@
 CREATE TABLE IF NOT EXISTS user_bounty_participation (
     id BIGSERIAL PRIMARY KEY,
     user_id BIGINT NOT NULL REFERENCES "user"(id),
-    bounty_id BIGINT NOT NULL REFERENCES bounty(id),
+    bounty_id BIGINT REFERENCES bounty(id),  -- nullable for point-request awards & manual grants
     points_earned BIGINT DEFAULT 0,
     berries_earned BIGINT DEFAULT 0,
     status VARCHAR(255),
@@ -18,6 +18,11 @@ CREATE INDEX IF NOT EXISTS idx_ubp_user_id ON user_bounty_participation(user_id)
 CREATE INDEX IF NOT EXISTS idx_ubp_bounty_id ON user_bounty_participation(bounty_id);
 
 COMMENT ON TABLE user_bounty_participation IS 'Captures the participation of users in bounties and their earned rewards';
+
+-- Prevent duplicate registrations for the same bounty (only where bounty_id is not NULL)
+CREATE UNIQUE INDEX IF NOT EXISTS idx_ubp_user_bounty_unique 
+  ON user_bounty_participation(user_id, bounty_id) 
+  WHERE bounty_id IS NOT NULL;
 
 CREATE TRIGGER update_user_bounty_participation_modified_on
 BEFORE UPDATE ON user_bounty_participation

@@ -1,11 +1,16 @@
 const pool = require('../config/db');
 
 class BountyRepository {
-  async findAll(filters = {}, pagination = {}, sorting = {}) {
+  async findAll(filters = {}, pagination = {}, sorting = {}, collegeId = null) {
     try {
       let query = 'SELECT * FROM bounty WHERE is_active = TRUE';
       const params = [];
       let idx = 1;
+
+      if (collegeId) {
+        query += ` AND (college_id = $${idx++} OR college_id IS NULL)`;
+        params.push(collegeId);
+      }
 
       // Apply filters
       if (filters.name) {
@@ -52,30 +57,49 @@ class BountyRepository {
     }
   }
 
-  async findById(id) {
+  async findById(id, collegeId = null) {
     try {
-      const query = 'SELECT * FROM bounty WHERE id = $1 AND is_active = TRUE';
-      const result = await pool.query(query, [id]);
+      let query = 'SELECT * FROM bounty WHERE id = $1 AND is_active = TRUE';
+      const params = [id];
+      if (collegeId) {
+        query += ' AND (college_id = $2 OR college_id IS NULL)';
+        params.push(collegeId);
+      }
+      const result = await pool.query(query, params);
       return result.rows[0] || null;
     } catch (error) {
       throw new Error(`Database error in findById: ${error.message}`);
     }
   }
 
-  async findUpcoming() {
+  async findUpcoming(collegeId = null) {
     try {
-      const query = 'SELECT * FROM bounty WHERE is_active = TRUE AND scheduled_date > NOW() ORDER BY scheduled_date ASC';
-      const result = await pool.query(query);
+      let query = 'SELECT * FROM bounty WHERE is_active = TRUE AND scheduled_date > NOW()';
+      const params = [];
+      let idx = 1;
+      if (collegeId) {
+        query += ` AND (college_id = $${idx++} OR college_id IS NULL)`;
+        params.push(collegeId);
+      }
+      query += ' ORDER BY scheduled_date ASC';
+      const result = await pool.query(query, params);
       return result.rows;
     } catch (error) {
       throw new Error(`Database error in findUpcoming: ${error.message}`);
     }
   }
 
-  async findOngoing() {
+  async findOngoing(collegeId = null) {
     try {
-      const query = 'SELECT * FROM bounty WHERE is_active = TRUE AND DATE(scheduled_date) = CURRENT_DATE ORDER BY scheduled_date ASC';
-      const result = await pool.query(query);
+      let query = 'SELECT * FROM bounty WHERE is_active = TRUE AND DATE(scheduled_date) = CURRENT_DATE';
+      const params = [];
+      let idx = 1;
+      if (collegeId) {
+        query += ` AND (college_id = $${idx++} OR college_id IS NULL)`;
+        params.push(collegeId);
+      }
+      query += ' ORDER BY scheduled_date ASC';
+      const result = await pool.query(query, params);
       return result.rows;
     } catch (error) {
       throw new Error(`Database error in findOngoing: ${error.message}`);
@@ -87,7 +111,7 @@ class BountyRepository {
       const query = `
         SELECT b.* FROM bounty b 
         JOIN user_bounty_participation ubp ON b.id = ubp.bounty_id 
-        WHERE b.is_active = TRUE AND ubp.user_id = $1 AND ubp.status = $2
+        WHERE b.is_active = TRUE AND (b.college_id = $1 OR b.college_id IS NULL) AND ubp.user_id = $1 AND ubp.status = $2
         ORDER BY b.scheduled_date DESC
       `;
       const result = await pool.query(query, [userId, 'completed']);
@@ -112,7 +136,7 @@ class BountyRepository {
           (CASE WHEN b.created_on >= NOW() - INTERVAL '3 days' THEN 2 ELSE 0 END) AS trending_score
         FROM bounty b
         LEFT JOIN user_bounty_participation ubp ON b.id = ubp.bounty_id
-        WHERE b.is_active = TRUE
+        WHERE b.is_active = TRUE AND (b.college_id = $1 OR b.college_id IS NULL)
         GROUP BY b.id
         ORDER BY trending_score DESC, b.scheduled_date ASC
         LIMIT 10
@@ -127,8 +151,8 @@ class BountyRepository {
   async create(bountyData) {
     try {
       const query = `
-        INSERT INTO bounty (name, description, type, img_url, image_hash, alloted_points, alloted_berries, scheduled_date, venue, capacity, is_active, created_by, modified_by) 
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) 
+        INSERT INTO bounty (name, description, type, img_url, image_hash, alloted_points, alloted_berries, scheduled_date, venue, capacity, college_id, is_active, created_by, modified_by) 
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) 
         RETURNING *
       `;
       const values = [
@@ -142,6 +166,7 @@ class BountyRepository {
         bountyData.scheduled_date,
         bountyData.venue,
         bountyData.capacity,
+        bountyData.college_id || null,
         bountyData.is_active !== undefined ? bountyData.is_active : true,
         bountyData.created_by,
         bountyData.modified_by
@@ -246,7 +271,7 @@ class BountyRepository {
                CASE WHEN ubp.bounty_id IS NOT NULL THEN true ELSE false END as is_registered
         FROM bounty b
         LEFT JOIN user_bounty_participation ubp ON b.id = ubp.bounty_id AND ubp.user_id = $1
-        WHERE b.is_active = TRUE AND b.scheduled_date > NOW()
+        WHERE b.is_active = TRUE AND (b.college_id = $1 OR b.college_id IS NULL) AND b.scheduled_date > NOW()
         ORDER BY b.scheduled_date ASC
       `;
       const result = await pool.query(query, [userId]);
@@ -262,7 +287,7 @@ class BountyRepository {
         SELECT b.* 
         FROM bounty b
         JOIN user_bounty_participation ubp ON b.id = ubp.bounty_id
-        WHERE b.is_active = TRUE AND ubp.user_id = $1 AND ubp.status = 'registered'
+        WHERE b.is_active = TRUE AND (b.college_id = $1 OR b.college_id IS NULL) AND ubp.user_id = $1 AND ubp.status = 'registered'
         ORDER BY b.scheduled_date ASC
       `;
       const result = await pool.query(query, [userId]);

@@ -16,7 +16,7 @@ exports.getUserAchievements = async (req, res) => {
     }
     
     // Check if user is requesting their own achievements or has admin access
-    if (req.user.id !== userId && req.user.role !== 'admin') {
+    if (req.user.id != userId && req.user.role !== 'admin') {
       return res.status(403).json({ 
         success: false, 
         error: 'Unauthorized access to achievements' 

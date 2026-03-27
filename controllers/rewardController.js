@@ -1,12 +1,22 @@
-const { getFileHash } = require('../fileHash');
+const { getFileHash } = require('../scripts/fileHash');
 const path = require('path');
 const fs = require('fs');
 const rewardService = require('../services/rewardService');
+const { rewardCache } = require('../utils/cacheUtils');
 
 // List all available rewards
 exports.getAllRewards = async (req, res) => {
   try {
-    const rewards = await rewardService.getAllRewards();
+    let collegeId = null;
+    if (req.user && req.user.role !== 'admin') {
+      collegeId = req.user.college_id;
+    }
+    const cacheKey = 'all_rewards_' + collegeId;
+    const cached = rewardCache.get(cacheKey);
+    if (cached) return res.json(cached);
+
+    const rewards = await rewardService.getAllRewards(collegeId);
+    rewardCache.set(cacheKey, rewards);
     res.json(rewards);
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch rewards', details: err.message });
@@ -38,9 +48,13 @@ exports.createReward = async (req, res) => {
     let image_hash = null;
     let img_url = null;
     if (req.file) {
-      img_url = `/uploads/rewards_imgs/${req.file.filename}`;
-      const fileBuffer = fs.readFileSync(req.file.path);
-      image_hash = getFileHash(fileBuffer);
+      img_url = req.file.location || `/uploads/rewards_imgs/${req.file.filename}`;
+      if (!req.file.location && req.file.path) {
+        try {
+          const fileBuffer = fs.readFileSync(req.file.path);
+          image_hash = getFileHash(fileBuffer);
+        } catch(e) {}
+      }
     } else if (req.body.img_url) {
       img_url = req.body.img_url;
       try {
@@ -63,6 +77,7 @@ exports.createReward = async (req, res) => {
     };
 
     const reward = await rewardService.createReward(rewardData);
+    rewardCache.clear(); // invalidates cache
     res.status(201).json(reward);
   } catch (err) {
     if (err.message.includes('NAME_REQUIRED')) {
@@ -89,19 +104,26 @@ exports.updateReward = async (req, res) => {
     // Handle file upload
     let image_hash = null;
     let img_url = null;
-    
+
     // Get current reward to check existing image
     const currentReward = await rewardService.getRewardById(id);
-    
+
     if (req.file) {
-      img_url = `/uploads/rewards_imgs/${req.file.filename}`;
-      const fileBuffer = fs.readFileSync(req.file.path);
-      image_hash = getFileHash(fileBuffer);
+      img_url = req.file.location || `/uploads/rewards_imgs/${req.file.filename}`;
+      if (!req.file.location && req.file.path) {
+        try {
+          const fileBuffer = fs.readFileSync(req.file.path);
+          image_hash = getFileHash(fileBuffer);
+        } catch(e) {}
+      }
       // Delete old image if present
       if (currentReward.img_url) {
-        const oldPath = path.join(__dirname, '..', currentReward.img_url);
-        if (fs.existsSync(oldPath)) {
-          fs.unlinkSync(oldPath);
+        if (currentReward.img_url.startsWith('http')) {
+          const { deleteFromS3 } = require('../middleware/uploadCategory');
+          deleteFromS3(currentReward.img_url);
+        } else {
+          const oldPath = path.join(__dirname, '..', currentReward.img_url);
+          if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
         }
       }
     } else if (req.body.img_url) {
@@ -128,6 +150,7 @@ exports.updateReward = async (req, res) => {
     };
 
     const reward = await rewardService.updateReward(id, updateData, userId);
+    rewardCache.clear(); // invalidates cache
     res.json(reward);
   } catch (err) {
     if (err.message.includes('REWARD_NOT_FOUND')) {
@@ -154,6 +177,7 @@ exports.deleteReward = async (req, res) => {
     const { id } = req.params;
     const userId = req.user.id;
     const reward = await rewardService.deleteReward(id, userId);
+    rewardCache.clear(); // invalidates cache
     res.json({ message: 'Reward deleted successfully', reward });
   } catch (err) {
     if (err.message.includes('REWARD_NOT_FOUND')) {
@@ -168,55 +192,70 @@ exports.deleteReward = async (req, res) => {
 
 // Claim a reward
 exports.claimReward = async (req, res) => {
+  const pool = require('../config/db');
+  const client = await pool.connect();
   try {
     const { id } = req.params;
     const userId = req.user && req.user.id;
-    
+
     if (!userId) {
+      client.release();
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    // Check if user can claim the reward
+    // Check if user can claim the reward (reward exists, not expired)
     const claimCheck = await rewardService.checkUserCanClaimReward(userId, id);
-    
     if (!claimCheck.canClaim) {
+      client.release();
       return res.status(400).json({ error: claimCheck.reason });
     }
 
-    // This would require a new service method for claiming rewards
-    // For now, we'll use the existing logic but move it to service layer later
-    const pool = require('../config/db');
-    
+    await client.query('BEGIN');
+
     // Calculate total berries earned from COMPLETED bounties only
-    const earnedResult = await pool.query(
+    const earnedResult = await client.query(
       'SELECT COALESCE(SUM(berries_earned), 0) AS total_earned FROM user_bounty_participation WHERE user_id = $1 AND status = $2',
       [userId, 'completed']
     );
     const totalEarned = parseInt(earnedResult.rows[0].total_earned, 10);
-    
-    // Calculate total berries spent
-    const spentResult = await pool.query(
+
+    // Calculate total berries spent (lock rows for this user to prevent race conditions)
+    const spentResult = await client.query(
       'SELECT COALESCE(SUM(berries_spent), 0) AS total_spent FROM user_reward_claim WHERE user_id = $1',
       [userId]
     );
     const totalSpent = parseInt(spentResult.rows[0].total_spent, 10);
-    
-    // Calculate available berries
+
     const availableBerries = totalEarned - totalSpent;
-    
+
     // Check if user has enough berries
     if (availableBerries < claimCheck.reward.berries_required) {
-      return res.status(400).json({ error: 'Not enough berries to claim this reward' });
+      await client.query('ROLLBACK');
+      client.release();
+      return res.status(400).json({ error: `Not enough berries. You have ${availableBerries} but need ${claimCheck.reward.berries_required}.` });
     }
-    
-    // Log the claim
-    await pool.query('BEGIN');
-    const claimResult = await pool.query(
+
+    // Insert the claim record
+    const redeemCode = Math.random().toString(36).substring(2, 10).toUpperCase();
+    const claimResult = await client.query(
       'INSERT INTO user_reward_claim (user_id, reward_id, berries_spent, redeemable_code, created_by, modified_by) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
-      [userId, claimCheck.reward.id, claimCheck.reward.berries_required, Math.random().toString(36).substring(2, 10).toUpperCase(), userId, userId]
+      [userId, claimCheck.reward.id, claimCheck.reward.berries_required, redeemCode, userId, userId]
     );
-    await pool.query('COMMIT');
-    
+
+    // Double-Entry Ledger Registration (Debit)
+    await ledgerService.debit({
+      idempotencyKey: uuidv4(),
+      userId: userId,
+      amount: claimCheck.reward.berries_required,
+      referenceType: 'REWARD_CLAIM',
+      referenceId: claimResult.rows[0].id,
+      collegeId: req.user.college_id || null,
+      actorId: userId
+    });
+
+    await client.query('COMMIT');
+    client.release();
+
     res.status(201).json({
       message: 'Reward claimed successfully',
       reward: { id: claimCheck.reward.id, name: claimCheck.reward.name, cost: claimCheck.reward.berries_required },
@@ -225,17 +264,19 @@ exports.claimReward = async (req, res) => {
       redeem_code: claimResult.rows[0].redeemable_code
     });
   } catch (err) {
-    const pool = require('../config/db');
-    await pool.query('ROLLBACK');
+    try { await client.query('ROLLBACK'); } catch (_) {}
+    client.release();
+    console.error('claimReward error:', err);
     res.status(500).json({ error: 'Failed to claim reward', details: err.message });
   }
 };
+
 
 // List claimed rewards for the current user
 exports.getClaimedRewards = async (req, res) => {
   try {
     const userId = req.user && req.user.id;
-    
+
     if (!userId) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
@@ -261,7 +302,12 @@ exports.getRewardsByCreator = async (req, res) => {
 // Get available rewards
 exports.getAvailableRewards = async (req, res) => {
   try {
+    const cacheKey = 'available_rewards';
+    const cached = rewardCache.get(cacheKey);
+    if (cached) return res.json(cached);
+
     const rewards = await rewardService.getAvailableRewards();
+    rewardCache.set(cacheKey, rewards);
     res.json(rewards);
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch available rewards', details: err.message });
@@ -358,6 +404,10 @@ exports.searchAndFilterRewards = async (req, res) => {
       pageSize = 10
     } = req.body;
 
+    const cacheKey = 'search_' + JSON.stringify({ filters, sortBy, sortOrder, pageNumber, pageSize });
+    const cached = rewardCache.get(cacheKey);
+    if (cached) return res.json(cached);
+
     // Use service method for search and filter
     const results = await rewardService.searchAndFilterRewards(filters);
 
@@ -368,7 +418,7 @@ exports.searchAndFilterRewards = async (req, res) => {
     const totalResults = results.length;
     const totalPages = Math.ceil(totalResults / limit);
 
-    res.json({
+    const responseData = {
       filters,
       results: paginatedResults,
       sortBy,
@@ -377,7 +427,10 @@ exports.searchAndFilterRewards = async (req, res) => {
       pageSize: limit,
       totalResults,
       totalPages
-    });
+    };
+    
+    rewardCache.set(cacheKey, responseData);
+    res.json(responseData);
   } catch (err) {
     res.status(500).json({ error: 'Failed to search rewards', details: err.message });
   }

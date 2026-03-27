@@ -1,6 +1,7 @@
 const bountyParticipationService = require('../services/bountyParticipationService');
 const bountyService = require('../services/bountyService');
 const userService = require('../services/userService');
+const achievementService = require('../services/achievementService');
 
 // CREATE
 exports.createParticipation = async (req, res) => {
@@ -18,6 +19,11 @@ exports.createParticipation = async (req, res) => {
     };
 
     const participation = await bountyParticipationService.createParticipation(participationData);
+    
+    if (status === 'completed') {
+      await achievementService.checkAndGrantAchievements(user_id);
+    }
+
     res.status(201).json({ message: 'Participation created', participation });
   } catch (err) {
     if (err.message.includes('USER_ID_AND_BOUNTY_ID_REQUIRED')) {
@@ -66,6 +72,11 @@ exports.updateParticipation = async (req, res) => {
     };
 
     const participation = await bountyParticipationService.updateParticipation(id, updateData, req.user.id);
+
+    if (status === 'completed' || participation.status === 'completed') {
+      await achievementService.checkAndGrantAchievements(participation.user_id);
+    }
+
     res.json({ message: 'Participation updated', participation });
   } catch (err) {
     if (err.message.includes('PARTICIPATION_NOT_FOUND')) {
