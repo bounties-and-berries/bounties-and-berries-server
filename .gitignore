@@ -92,4 +92,10 @@ ehthumbs.db
 Thumbs.db
 
 # cursor/mcp.json
-.cursor/mcp.json 
+.cursor/mcp.json
+
+# User uploaded files — use cloud storage in production
+uploads/
+
+# Log files
+server.log

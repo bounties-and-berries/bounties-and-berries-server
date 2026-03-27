@@ -21,6 +21,11 @@ const login = async (req, res, next) => {
         error: 'Authentication failed', 
         message: 'Wrong user role' 
       });
+    } else if (err.message.includes('INACTIVE_USER')) {
+      res.status(403).json({ 
+        error: 'Account disabled', 
+        message: 'Your account has been deactivated. Please contact your administrator.' 
+      });
     } else {
       res.status(500).json({ 
         error: 'Login failed', 

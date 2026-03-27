@@ -3,8 +3,14 @@ const jwt = require('jsonwebtoken');
 const authRepository = require('../repositories/authRepository');
 const tokenBlacklist = require('../utils/tokenBlacklist');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'supersecretkey';
+const JWT_SECRET = process.env.JWT_SECRET;
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '1h';
+
+if (!JWT_SECRET) {
+  console.error('❌ FATAL: JWT_SECRET environment variable is required but not set.');
+  console.error('   Generate one with: node -e "console.log(require(\'crypto\').randomBytes(64).toString(\'hex\'))"');
+  process.exit(1);
+}
 
 // Parse JWT_EXPIRES_IN to milliseconds for blacklist expiry
 function parseExpiryToMs(expiry) {

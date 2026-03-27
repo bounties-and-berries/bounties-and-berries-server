@@ -80,59 +80,16 @@ class UserRewardClaimService {
         throw new Error('USER_ID_REWARD_ID_AND_BERRIES_SPENT_REQUIRED');
       }
 
-      // Check if user exists
-      const user = await userRepository.findById(claimData.user_id);
-      if (!user) {
-        throw new Error('USER_NOT_FOUND');
-      }
-
-      // Check if reward exists
-      const reward = await rewardRepository.findById(claimData.reward_id);
-      if (!reward) {
-        throw new Error('REWARD_NOT_FOUND');
-      }
-
-      // Check if reward is available
-      if (reward.expiry_date && new Date(reward.expiry_date) < new Date()) {
-        throw new Error('REWARD_EXPIRED');
-      }
-
-      // Check if user has already claimed this reward
-      const existingClaim = await userRewardClaimRepository.findByUserAndReward(
-        claimData.user_id, 
-        claimData.reward_id
-      );
-      if (existingClaim) {
-        throw new Error('REWARD_ALREADY_CLAIMED');
-      }
-
-      // Validate berries spent
       if (claimData.berries_spent <= 0) {
         throw new Error('INVALID_BERRIES_SPENT');
       }
 
-      // Check if user has enough berries
-      const userEarnings = await bountyParticipationRepository.getTotalEarningsByUser(claimData.user_id);
-      const availableBerries = userEarnings.net_berries;
-      
-      if (availableBerries < claimData.berries_spent) {
-        throw new Error('INSUFFICIENT_BERRIES');
-      }
-
-      // Generate unique redeemable code
-      const redeemableCode = await userRewardClaimRepository.generateUniqueRedeemableCode();
-
-      // Normalize data
-      const normalizedData = {
-        user_id: claimData.user_id,
-        reward_id: claimData.reward_id,
-        berries_spent: claimData.berries_spent,
-        redeemable_code: redeemableCode,
-        created_by: claimData.created_by,
-        modified_by: claimData.modified_by || claimData.created_by
-      };
-
-      return await userRewardClaimRepository.create(normalizedData);
+      // Delegate to claimReward() which has proper locking, ledger debit, and idempotency
+      return await this.claimReward(
+        claimData.user_id,
+        claimData.reward_id,
+        claimData.created_by
+      );
     } catch (error) {
       throw new Error(`Service error in createClaim: ${error.message}`);
     }

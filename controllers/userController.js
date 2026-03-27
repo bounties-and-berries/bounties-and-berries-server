@@ -253,32 +253,15 @@ const getUserStats = async (req, res, next) => {
       WHERE user_id = $1
     `;
     const { rows: rewards } = await pool.query(rewardsQuery, [id]);
-    
-    // PHASE C: Feature Flag Ledger SSOT Cutover with Canary Rollout
-    const ledgerReadsEnabled = process.env.LEDGER_READS_ENABLED === 'true';
-    const ledgerPercent = Number(process.env.LEDGER_READS_PERCENT || 100);
-    const useLedger = ledgerReadsEnabled && (Math.random() * 100 < ledgerPercent);
 
-    let currentBerries = 0;
-    const legacyBalance = parseInt(earnings[0].total_berries_earned) - parseInt(spent[0].total_berries_spent);
-
-    if (useLedger) {
-      const ledgerResult = await pool.query('SELECT balance FROM user_balance WHERE user_id = $1', [id]);
-      currentBerries = ledgerResult.rows.length > 0 ? parseInt(ledgerResult.rows[0].balance, 10) : 0;
-
-      // Silent Comparator Guardrail (2% sampling)
-      if (Math.random() < 0.02) {
-        if (currentBerries !== legacyBalance) {
-          console.error('[LEDGER_AUDIT] BALANCE_MISMATCH detected during cutover', { 
-            userId: id, 
-            cached: currentBerries, 
-            derived: legacyBalance 
-          });
-        }
-      }
-    } else {
-      currentBerries = legacyBalance;
-    }
+    // Use ledger as single source of truth for berry balance
+    const ledgerResult = await pool.query(
+      'SELECT balance FROM user_balance WHERE user_id = $1',
+      [id]
+    );
+    const currentBerries = ledgerResult.rows.length > 0
+      ? parseInt(ledgerResult.rows[0].balance, 10)
+      : parseInt(earnings[0].total_berries_earned) - parseInt(spent[0].total_berries_spent);
 
     res.json({
       success: true,

@@ -35,6 +35,16 @@ const { authenticateToken, authorizeRoles } = require('./middleware/authMiddlewa
 const config = require('./config/config');
 const pool = require('./config/db');
 
+// ─── Startup Environment Validation ───────────────────────────────────────────
+const REQUIRED_ENV_VARS = ['JWT_SECRET', 'DB_HOST', 'DB_NAME', 'DB_USER', 'DB_PASSWORD'];
+const missingVars = REQUIRED_ENV_VARS.filter(v => !process.env[v]);
+if (missingVars.length > 0) {
+  console.error(`❌ FATAL: Missing required environment variables: ${missingVars.join(', ')}`);
+  console.error('   Copy .env.example to .env and fill in the values.');
+  process.exit(1);
+}
+// ──────────────────────────────────────────────────────────────────────────────
+
 const app = express();
 const PORT = process.env.PORT || 3001;
 
